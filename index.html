@@ -33,7 +33,7 @@
 #downloadAll{font-size:12px;padding:8px 14px}#downloadStatus{font-size:12px}
 @media(max-width:600px){.photo-arrow{width:40px;height:40px}.photo-arrow.prev{left:8px}.photo-arrow.next{right:8px}#resolution{display:none}#downloadStatus{display:none}}
 </style></head><body><main>
-<header class="author"><div class="row"><button id="saveProject">Zapisz projekt</button><label class="file">Otwórz projekt<input id="loadProject" type="file" accept=".json" hidden></label></div><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
+<header class="author"><div class="row"><label class="file">Połącz galerie<input id="mergeGalleries" type="file" accept=".html,.htm,.json" multiple hidden></label><button id="saveProject">Zapisz projekt</button><label class="file">Otwórz projekt<input id="loadProject" type="file" accept=".json" hidden></label></div><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
 <section class="panel author">
 <h2>1. Wybierz moment. Zachowaj widok.</h2>
 <p>Otwórz film z komputera. Zatrzymaj obraz i dodaj wybrany kadr. Film nie jest wysyłany na serwer.</p>
@@ -162,6 +162,44 @@ if(frames.length&&!confirm('Zastąpić bieżący projekt? Zapisz go wcześniej, 
 frames=p.frames;selected=0;render();if(map)$('fit').click();status('Projekt otwarty.');
 }catch(error){status('Nie można otworzyć projektu: '+error.message);}
 e.target.value='';
+};
+
+
+function readGalleryData(text){
+const trimmed=text.trim();
+if(trimmed.startsWith('{'))return JSON.parse(trimmed);
+const match=text.match(/<script\b(?=[^>]*\bid\s*=\s*["']project["'])(?=[^>]*\btype\s*=\s*["']application\/json["'])[^>]*>([\s\S]*?)<[/]script\s*>/i);
+if(!match)throw Error('To nie jest galeria wyeksportowana z Widoku z drona.');
+return JSON.parse(match[1]);
+}
+function validatedGalleryFrames(data){
+if(!data||!Array.isArray(data.frames))throw Error('Brak listy zdjęć.');
+return data.frames.map((f,i)=>{
+if(!f||typeof f.image!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/=\r\n]+$/.test(f.image)||!Number.isFinite(f.time)||f.time<0)throw Error('Nieprawidłowe zdjęcie '+(i+1));
+const numeric=k=>Number.isFinite(f[k])?f[k]:null;
+return {image:f.image,title:typeof f.title==='string'?f.title.slice(0,160):'',time:f.time,
+lat:numeric('lat'),lon:numeric('lon'),yaw:numeric('yaw'),pitch:numeric('pitch'),width:numeric('width'),height:numeric('height'),
+locationSource:typeof f.locationSource==='string'?f.locationSource.slice(0,80):null,
+directionSource:typeof f.directionSource==='string'?f.directionSource.slice(0,80):null};
+});
+}
+$('mergeGalleries').onchange=async e=>{
+const input=e.target,files=Array.from(input.files).sort((a,b)=>a.name.localeCompare(b.name,'pl',{numeric:true}));
+if(!files.length)return;
+input.disabled=true;
+try{
+const incoming=[];
+for(const file of files){
+status('Odczytywanie: '+file.name);
+try{incoming.push(...validatedGalleryFrames(readGalleryData(await file.text())));}
+catch(error){throw Error(file.name+': '+error.message);}
+}
+if(!incoming.length)throw Error('Wybrane galerie nie zawierają zdjęć.');
+const start=frames.length;
+frames=frames.concat(incoming);selected=start;stopPointing();render();if(map)$('fit').click();
+status('Dodano '+incoming.length+' zdjęć z '+files.length+' plików, w kolejności nazw plików. Razem: '+frames.length+'. Kliknij „Pobierz galerię dla znajomych”.');
+}catch(error){status('Nie połączono galerii: '+error.message);}
+finally{input.disabled=false;input.value='';}
 };
 
 function render(){
