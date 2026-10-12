@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Widok z drona</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f3ec;color:#193e32;font:16px system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:44px;letter-spacing:-2px;margin:20px 0}h2{font-size:21px}small,.muted{color:#66776f}button,.file{border:1px solid #bcc9c0;border-radius:24px;background:#fff;padding:12px 18px;cursor:pointer;color:#193e32;font:inherit}button:hover,.file:hover{background:#e6eddf}button:disabled{opacity:.45;cursor:default}.primary{background:#d9fa8a;border-color:#b3cf73}button:focus-visible,input:focus-visible{outline:3px solid #597928;outline-offset:3px}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.panel{background:#fff;border:1px solid #dce1d6;padding:22px;border-radius:24px;margin:20px 0}.hero{background:#132c25;border-radius:26px;overflow:hidden;min-height:280px;display:grid;place-items:center;position:relative}.hero img{display:block;width:100%;height:60vh;object-fit:contain}.empty{padding:70px 24px;color:#e0e9df;text-align:center}.thumbs{display:flex;gap:10px;overflow:auto;padding:16px 0}.thumbs button{padding:3px;border-radius:12px;flex-shrink:0}.thumbs img{height:64px;width:100px;object-fit:cover;border-radius:8px;display:block}.thumbs [aria-current=true]{outline:3px solid #678c35}.mapwrap{border-radius:24px;overflow:hidden;border:1px solid #c5cec2}#map{height:390px;background:#d2ddd0}.maphead{background:#fff;padding:18px}.pin{background:none;border:0;display:grid;place-items:center}.pin span{width:8px;height:8px;border-radius:50%;background:#8d9591;border:1px solid white;box-shadow:0 1px 4px #0008;display:grid;place-items:center;font:bold 12px system-ui;color:transparent}.pin.active span{width:36px;height:36px;background:#d9fa8a;border:3px solid #213f32;color:#18342a;box-shadow:0 0 0 5px #d9fa8a55}.pin:focus{outline:2px solid white;border-radius:50%}video{width:100%;max-height:420px;background:#142b23;border-radius:14px;margin:14px 0}input[type=number],input[type=text]{padding:10px;border:1px solid #becbbb;border-radius:10px;font:inherit;max-width:100%}#seek{width:100%}[hidden]{display:none!important}.viewer .author{display:none!important}#status{min-height:24px}footer{padding:24px 0;font-size:13px;color:#66776f}@media(max-width:650px){main{padding:15px}h1{font-size:34px}.hero img{height:42vh}#map{height:330px}header{align-items:flex-start;flex-direction:column}}
+</style></head><body><main>
+<header><div><small>WIDOK Z DRONA / TWOJA OPOWIEŚĆ</small><h1>Spójrz na to z góry.</h1></div><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
+<section class="panel author">
+<h2>1. Wybierz moment. Zachowaj widok.</h2>
+<p>Otwórz film z komputera. Zatrzymaj obraz i dodaj wybrany kadr. Film nie jest wysyłany na serwer.</p>
+<div class="row"><label class="file">Otwórz film <input id="videoFile" type="file" accept="video/*" hidden></label><label class="file">Dodaj pasujący SRT <input id="srtFile" type="file" accept=".srt" hidden></label><span id="sourceName" class="muted">Brak filmu</span></div>
+<video id="video" controls preload="metadata" playsinline></video>
+<input id="seek" type="range" min="0" max="0" value="0" step="0.01" aria-label="Moment filmu" disabled>
+<div class="row"><label>Sekunda filmu <input id="seconds" type="number" min="0" value="0" step="0.01" style="width:110px"></label><button id="go">Przejdź</button><button id="back">−0,1 s</button><button id="forward">+0,1 s</button><button class="primary" id="capture" disabled>＋ Dodaj ten kadr</button></div>
+<p class="muted">Zapis: JPEG do 1920 px. Wybór z dokładnością czasową przeglądarki, nie gwarantuje dokładności jednej klatki. Jeżeli film H.265 nie działa, użyj kopii H.264.</p>
+<p id="srtStatus" class="muted">SRT jest opcjonalny. Bez GPS wskaż pozycję kadru na mapie.</p>
+</section>
+<div id="status" role="status" aria-live="polite"></div>
+<section id="gallery"><div class="hero"><img id="photo" alt="" hidden><div class="empty" id="empty">Twoja galeria zacznie się od pierwszego kadru.</div></div>
+<div class="row" style="justify-content:space-between;margin-top:16px"><div><h2 id="caption">Miejsca widziane z góry</h2><span id="counter" class="muted">0 zdjęć</span></div><div class="row"><button id="prev" aria-label="Poprzednie zdjęcie">←</button><button id="next" aria-label="Następne zdjęcie">→</button></div></div>
+<div id="thumbs" class="thumbs"></div>
+<div class="row author"><label>Opis <input id="title" type="text" maxlength="160" placeholder="Nazwij to miejsce"></label><button id="locate">Wskaż pozycję na mapie</button><button id="remove">Usuń kadr</button></div>
+</section>
+<section class="mapwrap" style="margin-top:24px">
+<div class="maphead"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Gdzie powstało to zdjęcie?</h2><div class="row"><label><input id="showOthers" type="checkbox" checked> Pokaż szare</label><label><input id="showAll" type="checkbox" checked> Pokaż znaczniki</label><button id="fit">Wszystkie miejsca</button></div></div><p class="muted">Duży zielony punkt: oglądany kadr. Małe szare: pozostałe. Kliknij punkt, aby przejść do zdjęcia.</p><div id="position" class="muted"></div><div id="overlap" class="row"></div></div>
+<div id="map" aria-label="Mapa miejsc wykonania zdjęć"></div></section>
+<footer>Podkład: Esri World Imagery. Znaczniki oznaczają pozycję drona, a nie miejsce widoczne w środku zdjęcia. Mapa wymaga internetu.</footer>
+</main><script id="project" type="application/json">{"viewer":false,"frames":[]}</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+const pristine=document.documentElement.outerHTML;
+const $=id=>document.getElementById(id),project=JSON.parse($('project').textContent);
+let frames=project.frames,selected=0,telemetry=[],videoURL=null,placing=false;
+document.body.classList.toggle('viewer',project.viewer);
+const video=$('video'),status=message=>$('status').textContent=message;
+const validGPS=f=>Number.isFinite(f.lat)&&Number.isFinite(f.lon)&&Math.abs(f.lat)<=85.05112878&&Math.abs(f.lon)<=180;
+const clock=t=>new Date(t*1000).toISOString().slice(11,19);
+let map=null,markers=null;
+if(window.L){
+map=L.map('map').setView([52,19],6);markers=L.layerGroup().addTo(map);
+L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri — Sources: Esri, Vantor, Earthstar Geographics, GIS User Community'}).addTo(map).on('tileerror',()=>{$('position').textContent='Nie udało się pobrać części mapy. Sprawdź połączenie z internetem.';});
+map.on('click',e=>{if(!placing||!frames.length)return;Object.assign(frames[selected],{lat:e.latlng.lat,lon:e.latlng.lng,locationSource:'ręcznie'});placing=false;status('Pozycja zapisana.');render();});
+}else status('Mapa nie załadowała się. Sprawdź internet i odśwież stronę. Galeria nadal działa.');
+function pick(i,scroll=false){selected=i;placing=false;render();if(scroll)$('gallery').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
+function drawMap(){
+if(!map)return;markers.clearLayers();$('overlap').replaceChildren();$('showOthers').disabled=!$('showAll').checked;
+if(!$('showAll').checked)return;
+frames.forEach((f,i)=>{
+if(!validGPS(f)||(i!==selected&&!$('showOthers').checked))return;
+const marker=L.marker([f.lat,f.lon],{icon:L.divIcon({className:'pin'+(i===selected?' active':''),html:'<span>'+(i+1)+'</span>',iconSize:[44,44],iconAnchor:[22,22]}),zIndexOffset:i===selected?1000:0,title:'Zdjęcie '+(i+1),alt:'Zdjęcie '+(i+1)}).addTo(markers);
+marker.on('click',()=>{
+const p=map.latLngToContainerPoint([f.lat,f.lon]);
+const near=frames.map((x,j)=>({x,j})).filter(({x,j})=>validGPS(x)&&(j===selected||$('showOthers').checked)&&p.distanceTo(map.latLngToContainerPoint([x.lat,x.lon]))<18);
+pick(i,true);
+if(near.length>1){const label=document.createElement('span');label.textContent='Kadry w tym miejscu:';$('overlap').append(label);near.forEach(({j})=>{const b=document.createElement('button');b.textContent=String(j+1);b.onclick=()=>pick(j,true);$('overlap').append(b);});}
+});
+});
+}
+function render(){
+const f=frames[selected];$('photo').hidden=!f;$('empty').hidden=!!f;
+if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=f.title;$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;}
+else{$('photo').removeAttribute('src');$('caption').textContent='Miejsca widziane z góry';$('counter').textContent='0 zdjęć';}
+$('position').textContent=f?(validGPS(f)?'Pozycja drona · '+(f.locationSource||'SRT'):'Ten kadr nie ma jeszcze pozycji GPS.'):'Dodaj kadr, aby zobaczyć jego pozycję.';
+['prev','next','remove','locate','export','title'].forEach(id=>$(id).disabled=!f);
+$('thumbs').replaceChildren();frames.forEach((x,i)=>{const b=document.createElement('button'),im=document.createElement('img');im.src=x.image;im.alt=x.title;b.append(im);b.setAttribute('aria-current',String(i===selected));b.onclick=()=>pick(i);$('thumbs').append(b);});drawMap();
+}
+$('showAll').onchange=drawMap;$('showOthers').onchange=drawMap;
+$('fit').onclick=()=>{const pts=frames.filter(validGPS).map(f=>[f.lat,f.lon]);if(map&&pts.length)map.fitBounds(pts,{padding:[45,45],maxZoom:18});};
+$('prev').onclick=()=>pick((selected-1+frames.length)%frames.length);
+$('next').onclick=()=>pick((selected+1)%frames.length);
+$('title').onchange=()=>{if(frames[selected]){frames[selected].title=$('title').value.trim()||'Kadr '+(selected+1);render();}};
+$('locate').onclick=()=>{if(!map)return;placing=true;status('Kliknij na mapie miejsce, w którym znajdował się dron.');};
+$('remove').onclick=()=>{frames.splice(selected,1);selected=Math.max(0,Math.min(selected,frames.length-1));render();};
+function seek(t){if(!Number.isFinite(video.duration))return;video.pause();video.currentTime=Math.max(0,Math.min(video.duration,t));}
+$('go').onclick=()=>seek(Number($('seconds').value));
+$('back').onclick=()=>seek(video.currentTime-.1);$('forward').onclick=()=>seek(video.currentTime+.1);
+$('seek').oninput=()=>seek(Number($('seek').value));
+video.onloadedmetadata=()=>{$('seek').max=video.duration;$('seek').disabled=false;};
+video.ontimeupdate=()=>{$('seek').value=video.currentTime;$('seconds').value=video.currentTime.toFixed(2);};
+video.onseeking=()=>{$('capture').disabled=true;};
+video.onseeked=video.onloadeddata=()=>{$('capture').disabled=video.readyState<2;};
+video.onerror=()=>{status('Nie można odtworzyć filmu. Przygotuj kopię MP4 H.264 w FFmpeg.');$('capture').disabled=true;};
+$('videoFile').onchange=e=>{const file=e.target.files[0];if(!file)return;if(videoURL)URL.revokeObjectURL(videoURL);telemetry=[];$('srtFile').value='';$('srtStatus').textContent='Dodaj SRT pasujący do nowego filmu albo wskaż pozycje ręcznie.';$('capture').disabled=true;videoURL=URL.createObjectURL(file);video.src=videoURL;$('sourceName').textContent=file.name;video.load();};
+function parseSRT(text){
+const entries=[];for(const block of text.replace(/\r/g,'').split(/\n\s*\n/)){
+const timing=block.match(/(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/);
+const lat=block.match(/latitude\s*[:=]\s*(-?[\d.]+)/i),lon=block.match(/longitude\s*[:=]\s*(-?[\d.]+)/i);
+if(!timing||!lat||!lon)continue;
+const seconds=k=>Number(timing[k])*3600+Number(timing[k+1])*60+Number(timing[k+2])+Number(timing[k+3])/1000;
+const f={start:seconds(1),end:seconds(5),lat:Number(lat[1]),lon:Number(lon[1])};
+if(validGPS(f)&&f.end>=f.start)entries.push(f);
+}return entries.sort((a,b)=>a.start-b.start);
+}
+$('srtFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>30e6){status('Plik SRT jest za duży (limit 30 MB).');return;}try{telemetry=parseSRT(await file.text());$('srtStatus').textContent=telemetry.length?'Wczytano '+telemetry.length+' pozycji. Czas SRT musi odpowiadać temu samemu, nieprzyciętemu filmowi.':'Nie rozpoznano GPS latitude/longitude. Pozycję można wskazać ręcznie.';}catch(error){status('Nie udało się odczytać SRT: '+error.message);}};
+$('capture').onclick=()=>{
+if(video.seeking||video.readyState<2)return;video.pause();
+const canvas=document.createElement('canvas'),scale=Math.min(1,1920/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+const time=video.currentTime,gps=telemetry.find(x=>time>=x.start&&time<x.end);
+frames.push({title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.85),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?'SRT':null});
+selected=frames.length-1;render();if(gps&&map)map.setView([gps.lat,gps.lon],17);status(gps?'Kadr dodany z pozycją GPS.':'Kadr dodany. Możesz wskazać jego pozycję na mapie.');
+};
+$('export').onclick=()=>{
+if(!frames.length)return;
+const payload=JSON.stringify({viewer:true,frames}).replace(/</g,'\\u003c');
+const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('</script>',a);
+const output='<!doctype html>\n'+pristine.slice(0,a)+payload+pristine.slice(b);
+const url=URL.createObjectURL(new Blob([output],{type:'text/html;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='galeria.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);status('Zapisano galerię ze zdjęciami. Wyślij plik znajomym albo dodaj go do repozytorium.');
+};
+render();if(frames.some(validGPS))$('fit').click();
+</script></body></html>
