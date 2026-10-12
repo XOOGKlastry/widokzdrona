@@ -1,0 +1,30 @@
+name: Windows portable
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'index.html', 'Start-Widok.ps1', '.github/workflows/windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PowerShell and compile launcher
+        shell: powershell
+        run: |
+          $errors = $null
+          $tokens = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$pwd/Start-Widok.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+          New-Item -ItemType Directory -Path dist
+          & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /out:dist\Widok-z-drona.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll desktop\Launcher.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
+          Copy-Item index.html,Start-Widok.ps1 dist
+          'Rozpakuj caly ZIP. Uruchom Widok-z-drona.exe. Wymagany ExifTool w PATH. Edytor otwiera sie w przegladarce. Zapisuj projekt przed zamknieciem. Internet potrzebny do mapy.' | Set-Content dist\CZYTAJ.txt -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Widok-z-drona-Windows
+          path: dist/
+          if-no-files-found: error
