@@ -10,11 +10,18 @@ $listener.Prefixes.Add("$origin/")
 $listener.Start()
 $videoPath = $null
 $videoId = $null
+function Test-ClientDisconnect([Exception]$exception) {
+    $cause = $exception.GetBaseException()
+    # Windows codes for a browser cancelling an outstanding HTTP request.
+    return ($cause -is [System.Net.HttpListenerException] -and
+        $cause.NativeErrorCode -in @(64, 995, 1229, 1236, 10053, 10054))
+}
 function Send-Json($context, $data, $code = 200) {
     $bytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $data -Depth 12 -Compress))
     $context.Response.StatusCode = $code
     $context.Response.ContentType = 'application/json; charset=utf-8'
     $context.Response.ContentLength64 = $bytes.Length
+    $script:responseStarted = $true
     $context.Response.OutputStream.Write($bytes,0,$bytes.Length)
 }
 function Read-Telemetry([string]$path) {
@@ -55,6 +62,7 @@ Start-Process "$origin/?token=$token"
 try {
 while ($listener.IsListening) {
     $ctx=$listener.GetContext()
+    $script:responseStarted = $false
     try {
         $req=$ctx.Request
         if ($req.Headers['Host'] -ne 'localhost:8765') { Send-Json $ctx @{error='Invalid host'} 403; continue }
@@ -63,6 +71,7 @@ while ($listener.IsListening) {
             $bytes=[IO.File]::ReadAllBytes($index)
             $ctx.Response.ContentType='text/html; charset=utf-8'
             $ctx.Response.ContentLength64=$bytes.Length
+            $script:responseStarted = $true
             $ctx.Response.OutputStream.Write($bytes,0,$bytes.Length)
         } elseif ($route -eq '/open' -and $req.HttpMethod -eq 'POST') {
             if ($req.Headers['Origin'] -ne $origin -or $req.Headers['X-Widok-Token'] -ne $token) { Send-Json $ctx @{error='Invalid session'} 403; continue }
@@ -98,14 +107,34 @@ while ($listener.IsListening) {
                 while ($remaining -gt 0) {
                     $count=$stream.Read($buffer,0,[int][Math]::Min($remaining,$buffer.Length))
                     if ($count -le 0) { break }
+                    $script:responseStarted = $true
                     $ctx.Response.OutputStream.Write($buffer,0,$count)
                     $remaining-=$count
                 }
             } finally { $stream.Dispose() }
         } else { Send-Json $ctx @{error='Not found'} 404 }
     } catch {
-        Write-Warning $_.Exception.Message
-        try { Send-Json $ctx @{error=$_.Exception.Message} 500 } catch { Write-Warning 'Request disconnected.' }
-    } finally { $ctx.Response.Close() }
+        $requestError = $_.Exception
+        if (Test-ClientDisconnect $requestError) {
+            Write-Verbose 'Browser cancelled request (normal during seeking).'
+        } else {
+            Write-Warning $requestError.Message
+            if (-not $script:responseStarted) {
+                try { Send-Json $ctx @{error=$requestError.Message} 500 }
+                catch {
+                    if (-not (Test-ClientDisconnect $_.Exception)) {
+                        Write-Warning $_.Exception.Message
+                    }
+                }
+            }
+        }
+    } finally {
+        try { $ctx.Response.Close() }
+        catch {
+            if (-not (Test-ClientDisconnect $_.Exception)) {
+                Write-Warning $_.Exception.Message
+            }
+        }
+    }
 }
 } finally { $listener.Stop(); $listener.Close() }
