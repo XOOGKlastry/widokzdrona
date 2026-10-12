@@ -104,7 +104,7 @@ selected=frames.length-1;render();if(gps&&map)map.setView([gps.lat,gps.lon],17);
 $('export').onclick=()=>{
 if(!frames.length)return;
 const payload=JSON.stringify({viewer:true,frames}).replace(/</g,'\\u003c');
-const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('</script>',a);
+const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('<'+'/script>',a);
 const output='<!doctype html>\n'+pristine.slice(0,a)+payload+pristine.slice(b);
 const url=URL.createObjectURL(new Blob([output],{type:'text/html;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='galeria.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);status('Zapisano galerię ze zdjęciami. Wyślij plik znajomym albo dodaj go do repozytorium.');
 };
