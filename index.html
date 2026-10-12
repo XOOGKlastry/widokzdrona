@@ -3,8 +3,27 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f4f3ec;color:#193e32;font:16px system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:44px;letter-spacing:-2px;margin:20px 0}h2{font-size:21px}small,.muted{color:#66776f}button,.file{border:1px solid #bcc9c0;border-radius:24px;background:#fff;padding:12px 18px;cursor:pointer;color:#193e32;font:inherit}button:hover,.file:hover{background:#e6eddf}button:disabled{opacity:.45;cursor:default}.primary{background:#d9fa8a;border-color:#b3cf73}button:focus-visible,input:focus-visible{outline:3px solid #597928;outline-offset:3px}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.panel{background:#fff;border:1px solid #dce1d6;padding:22px;border-radius:24px;margin:20px 0}.hero{background:#132c25;border-radius:26px;overflow:hidden;min-height:280px;display:grid;place-items:center;position:relative}.hero img{display:block;width:100%;height:60vh;object-fit:contain}.empty{padding:70px 24px;color:#e0e9df;text-align:center}.thumbs{display:flex;gap:10px;overflow:auto;padding:16px 0}.thumbs button{padding:3px;border-radius:12px;flex-shrink:0}.thumbs img{height:64px;width:100px;object-fit:cover;border-radius:8px;display:block}.thumbs [aria-current=true]{outline:3px solid #678c35}.mapwrap{border-radius:24px;overflow:hidden;border:1px solid #c5cec2}#map{height:390px;background:#d2ddd0}.maphead{background:#fff;padding:18px}.pin{background:none;border:0;display:grid;place-items:center}.pin span{width:8px;height:8px;border-radius:50%;background:#8d9591;border:1px solid white;box-shadow:0 1px 4px #0008;display:grid;place-items:center;font:bold 12px system-ui;color:transparent}.pin.active span{width:36px;height:36px;background:#d9fa8a;border:3px solid #213f32;color:#18342a;box-shadow:0 0 0 5px #d9fa8a55}.pin:focus{outline:2px solid white;border-radius:50%}video{width:100%;max-height:420px;background:#142b23;border-radius:14px;margin:14px 0}input[type=number],input[type=text]{padding:10px;border:1px solid #becbbb;border-radius:10px;font:inherit;max-width:100%}#seek{width:100%}[hidden]{display:none!important}.viewer .author{display:none!important}#status{min-height:24px}footer{padding:24px 0;font-size:13px;color:#66776f}@media(max-width:650px){main{padding:15px}h1{font-size:34px}.hero img{height:42vh}#map{height:330px}header{align-items:flex-start;flex-direction:column}}
+
+.pin span{width:11px;height:11px}
+.camera-direction{background:none;border:0;pointer-events:none!important}
+.camera-direction svg{overflow:visible;display:block}
+.viewer{height:100vh;height:100dvh;overflow:hidden}
+.viewer main{height:100%;max-width:none;padding:12px;display:grid;grid-template-rows:minmax(0,3fr) minmax(0,2fr);gap:10px}
+.viewer #gallery{min-height:0;position:relative;display:grid;grid-template-rows:minmax(0,1fr) 45px}
+.viewer .hero{min-height:0;border-radius:16px;height:100%}
+.viewer .hero img{height:100%;width:100%;min-height:0;position:absolute;inset:0}
+.viewer .gallery-nav{margin:0!important;flex-wrap:nowrap;gap:8px}
+.viewer #caption{display:none}.viewer .gallery-nav button{padding:6px 20px}
+.viewer .thumbs{display:none}
+.viewer .mapwrap{margin:0!important;min-height:0;display:flex;flex-direction:column;border-radius:16px}
+.viewer .maphead{padding:6px 12px;font-size:12px;flex-shrink:0}
+.viewer .maphead .row{gap:8px}.viewer .maphead p{margin:3px 0}
+.viewer .maphead button{padding:4px 9px;font-size:12px}
+.viewer #map{height:auto;min-height:0;flex:1}
+.viewer #overlap{max-height:40px;overflow:auto;flex-wrap:nowrap}
+@media(max-height:550px){.viewer .maphead p{display:none}.viewer main{padding:4px;gap:4px}}
 </style></head><body><main>
-<header><div><small>WIDOK Z DRONA / TWOJA OPOWIEŚĆ</small><h1>Spójrz na to z góry.</h1></div><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
+<header class="author"><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
 <section class="panel author">
 <h2>1. Wybierz moment. Zachowaj widok.</h2>
 <p>Otwórz film z komputera. Zatrzymaj obraz i dodaj wybrany kadr. Film nie jest wysyłany na serwer.</p>
@@ -15,16 +34,16 @@
 <p class="muted">Zapis: JPEG do 1920 px. Wybór z dokładnością czasową przeglądarki, nie gwarantuje dokładności jednej klatki. Jeżeli film H.265 nie działa, użyj kopii H.264.</p>
 <p id="srtStatus" class="muted">SRT jest opcjonalny. Bez GPS wskaż pozycję kadru na mapie.</p>
 </section>
-<div id="status" role="status" aria-live="polite"></div>
+<div class="author" id="status" role="status" aria-live="polite"></div>
 <section id="gallery"><div class="hero"><img id="photo" alt="" hidden><div class="empty" id="empty">Twoja galeria zacznie się od pierwszego kadru.</div></div>
-<div class="row" style="justify-content:space-between;margin-top:16px"><div><h2 id="caption">Miejsca widziane z góry</h2><span id="counter" class="muted">0 zdjęć</span></div><div class="row"><button id="prev" aria-label="Poprzednie zdjęcie">←</button><button id="next" aria-label="Następne zdjęcie">→</button></div></div>
+<div class="row gallery-nav" style="justify-content:space-between;margin-top:16px"><div><h2 id="caption">Miejsca widziane z góry</h2><span id="counter" class="muted">0 zdjęć</span></div><div class="row"><button id="prev" aria-label="Poprzednie zdjęcie">←</button><button id="next" aria-label="Następne zdjęcie">→</button></div></div>
 <div id="thumbs" class="thumbs"></div>
-<div class="row author"><label>Opis <input id="title" type="text" maxlength="160" placeholder="Nazwij to miejsce"></label><button id="locate">Wskaż pozycję na mapie</button><button id="remove">Usuń kadr</button></div>
+<div class="row author"><label>Opis <input id="title" type="text" maxlength="160" placeholder="Nazwij to miejsce"></label><button id="locate">Wskaż pozycję na mapie</button><button id="remove">Usuń kadr</button><label>Kierunek kamery ° <input id="yaw" type="number" min="0" max="360" step="1" placeholder="Brak danych" style="width:130px"></label><label><input id="nadir" type="checkbox"> Obiektyw pionowo w dół</label></div>
 </section>
 <section class="mapwrap" style="margin-top:24px">
-<div class="maphead"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Gdzie powstało to zdjęcie?</h2><div class="row"><label><input id="showOthers" type="checkbox" checked> Pokaż szare</label><label><input id="showAll" type="checkbox" checked> Pokaż znaczniki</label><button id="fit">Wszystkie miejsca</button></div></div><p class="muted">Duży zielony punkt: oglądany kadr. Małe szare: pozostałe. Kliknij punkt, aby przejść do zdjęcia.</p><div id="position" class="muted"></div><div id="overlap" class="row"></div></div>
+<div class="maphead"><div class="row" style="justify-content:space-between"><div class="row"><label><input id="showOthers" type="checkbox" checked> Pokaż szare</label><label><input id="showAll" type="checkbox" checked> Pokaż znaczniki</label><button id="fit">Wszystkie miejsca</button></div></div><p class="muted">Zielony: wybrane zdjęcie · szare: pozostałe · strzałka: kierunek obiektywu (schemat).</p><div id="position" class="muted"></div><div id="overlap" class="row"></div></div>
 <div id="map" aria-label="Mapa miejsc wykonania zdjęć"></div></section>
-<footer>Podkład: Esri World Imagery. Znaczniki oznaczają pozycję drona, a nie miejsce widoczne w środku zdjęcia. Mapa wymaga internetu.</footer>
+<footer class="author">Podkład: Esri World Imagery. Znaczniki oznaczają pozycję drona, a nie miejsce widoczne w środku zdjęcia. Mapa wymaga internetu.</footer>
 </main><script id="project" type="application/json">{"viewer":false,"frames":[]}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -42,10 +61,11 @@ map=L.map('map').setView([52,19],6);markers=L.layerGroup().addTo(map);
 L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri — Sources: Esri, Vantor, Earthstar Geographics, GIS User Community'}).addTo(map).on('tileerror',()=>{$('position').textContent='Nie udało się pobrać części mapy. Sprawdź połączenie z internetem.';});
 map.on('click',e=>{if(!placing||!frames.length)return;Object.assign(frames[selected],{lat:e.latlng.lat,lon:e.latlng.lng,locationSource:'ręcznie'});placing=false;status('Pozycja zapisana.');render();});
 }else status('Mapa nie załadowała się. Sprawdź internet i odśwież stronę. Galeria nadal działa.');
-function pick(i,scroll=false){selected=i;placing=false;render();if(scroll)$('gallery').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
+function pick(i,scroll=false){selected=i;placing=false;render();if(map&&validGPS(frames[i]))map.panTo([frames[i].lat,frames[i].lon]);if(scroll&&!project.viewer)$('gallery').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
 function drawMap(){
 if(!map)return;markers.clearLayers();$('overlap').replaceChildren();$('showOthers').disabled=!$('showAll').checked;
 if(!$('showAll').checked)return;
+drawDirection();
 frames.forEach((f,i)=>{
 if(!validGPS(f)||(i!==selected&&!$('showOthers').checked))return;
 const marker=L.marker([f.lat,f.lon],{icon:L.divIcon({className:'pin'+(i===selected?' active':''),html:'<span>'+(i+1)+'</span>',iconSize:[44,44],iconAnchor:[22,22]}),zIndexOffset:i===selected?1000:0,title:'Zdjęcie '+(i+1),alt:'Zdjęcie '+(i+1)}).addTo(markers);
@@ -57,14 +77,34 @@ if(near.length>1){const label=document.createElement('span');label.textContent='
 });
 });
 }
+
+function cameraDescription(f){
+if(!f)return '';
+if(f.pitch===-90)return 'Obiektyw pionowo w dół';
+return Number.isFinite(f.yaw)?'Kierunek obiektywu: '+Math.round(f.yaw)+'° · '+(f.directionSource||'ręcznie'):'Brak kierunku obiektywu — ustaw w edytorze';
+}
+function drawDirection(){
+const f=frames[selected];if(!f||!validGPS(f))return;
+let drawing;
+if(f.pitch===-90)drawing='<circle cx="90" cy="90" r="27" fill="none" stroke="#dbff81" stroke-width="3" stroke-dasharray="4 4"/>';
+else if(Number.isFinite(f.yaw)){
+const angle=((f.yaw%360)+360)%360;
+drawing='<g transform="rotate('+angle+' 90 90)"><path d="M90 90 L56 12 Q90 0 124 12 Z" fill="#dbff81" fill-opacity=".25"/><path d="M90 68 V12 M81 25 L90 12 L99 25" fill="none" stroke="#dbff81" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>';
+}else return;
+L.marker([f.lat,f.lon],{interactive:false,keyboard:false,zIndexOffset:900,icon:L.divIcon({className:'camera-direction',iconSize:[180,180],iconAnchor:[90,90],html:'<svg width="180" height="180" aria-hidden="true">'+drawing+'</svg>'})}).addTo(markers);
+}
+
 function render(){
 const f=frames[selected];$('photo').hidden=!f;$('empty').hidden=!!f;
-if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=f.title;$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;}
+if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=f.title;$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;$('yaw').value=Number.isFinite(f.yaw)?f.yaw:'';$('nadir').checked=f.pitch===-90;}
 else{$('photo').removeAttribute('src');$('caption').textContent='Miejsca widziane z góry';$('counter').textContent='0 zdjęć';}
-$('position').textContent=f?(validGPS(f)?'Pozycja drona · '+(f.locationSource||'SRT'):'Ten kadr nie ma jeszcze pozycji GPS.'):'Dodaj kadr, aby zobaczyć jego pozycję.';
-['prev','next','remove','locate','export','title'].forEach(id=>$(id).disabled=!f);
+$('position').textContent=f?(validGPS(f)?cameraDescription(f):'Ten kadr nie ma jeszcze pozycji GPS.'):'Dodaj kadr, aby zobaczyć jego pozycję.';
+['prev','next','remove','locate','export','title','yaw','nadir'].forEach(id=>$(id).disabled=!f);
 $('thumbs').replaceChildren();frames.forEach((x,i)=>{const b=document.createElement('button'),im=document.createElement('img');im.src=x.image;im.alt=x.title;b.append(im);b.setAttribute('aria-current',String(i===selected));b.onclick=()=>pick(i);$('thumbs').append(b);});drawMap();
 }
+
+$('yaw').onchange=()=>{const f=frames[selected];if(!f)return;const value=$('yaw').value.trim();f.yaw=value!==''&&Number.isFinite(Number(value))?((Number(value)%360)+360)%360:null;f.directionSource='ręcznie';render();};
+$('nadir').onchange=()=>{const f=frames[selected];if(!f)return;f.pitch=$('nadir').checked?-90:null;f.directionSource='ręcznie';render();};
 $('showAll').onchange=drawMap;$('showOthers').onchange=drawMap;
 $('fit').onclick=()=>{const pts=frames.filter(validGPS).map(f=>[f.lat,f.lon]);if(map&&pts.length)map.fitBounds(pts,{padding:[45,45],maxZoom:18});};
 $('prev').onclick=()=>pick((selected-1+frames.length)%frames.length);
@@ -89,6 +129,9 @@ const lat=block.match(/latitude\s*[:=]\s*(-?[\d.]+)/i),lon=block.match(/longitud
 if(!timing||!lat||!lon)continue;
 const seconds=k=>Number(timing[k])*3600+Number(timing[k+1])*60+Number(timing[k+2])+Number(timing[k+3])/1000;
 const f={start:seconds(1),end:seconds(5),lat:Number(lat[1]),lon:Number(lon[1])};
+const yaw=block.match(/(?:gimbal[_ ]yaw|camera[_ ]yaw)\s*[:=]\s*(-?[\d.]+)/i),pitch=block.match(/(?:gimbal[_ ]pitch|camera[_ ]pitch)\s*[:=]\s*(-?[\d.]+)/i);
+f.yaw=yaw&&Number.isFinite(Number(yaw[1]))?((Number(yaw[1])%360)+360)%360:null;
+f.pitch=pitch&&Number.isFinite(Number(pitch[1]))?Number(pitch[1]):null;
 if(validGPS(f)&&f.end>=f.start)entries.push(f);
 }return entries.sort((a,b)=>a.start-b.start);
 }
@@ -98,7 +141,7 @@ if(video.seeking||video.readyState<2)return;video.pause();
 const canvas=document.createElement('canvas'),scale=Math.min(1,1920/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
 canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
 const time=video.currentTime,gps=telemetry.find(x=>time>=x.start&&time<x.end);
-frames.push({title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.85),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?'SRT':null});
+frames.push({title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.85),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?'SRT':null,yaw:gps?gps.yaw:null,pitch:gps?gps.pitch:null,directionSource:gps&&Number.isFinite(gps.yaw)?'SRT kamery':null});
 selected=frames.length-1;render();if(gps&&map)map.setView([gps.lat,gps.lon],17);status(gps?'Kadr dodany z pozycją GPS.':'Kadr dodany. Możesz wskazać jego pozycję na mapie.');
 };
 $('export').onclick=()=>{
@@ -108,5 +151,5 @@ const start='<script id="project" type="application/json">',a=pristine.indexOf(s
 const output='<!doctype html>\n'+pristine.slice(0,a)+payload+pristine.slice(b);
 const url=URL.createObjectURL(new Blob([output],{type:'text/html;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='galeria.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);status('Zapisano galerię ze zdjęciami. Wyślij plik znajomym albo dodaj go do repozytorium.');
 };
-render();if(frames.some(validGPS))$('fit').click();
+render();if(map)new ResizeObserver(()=>map.invalidateSize()).observe($('map'));if(frames.some(validGPS))$('fit').click();
 </script></body></html>
