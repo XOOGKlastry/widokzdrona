@@ -58,9 +58,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 'use strict';
-const pristine=document.documentElement.outerHTML;
 const $=id=>document.getElementById(id),project=JSON.parse($('project').textContent);
+$('project').textContent='{"viewer":false,"frames":[]}';
+const pristine=document.documentElement.outerHTML;
 let frames=project.frames,selected=0,telemetry=[],videoURL=null,placing=false,aiming=false;
+delete project.frames;
 document.body.classList.toggle('viewer',project.viewer);
 const video=$('video'),status=message=>$('status').textContent=message;
 const validGPS=f=>Number.isFinite(f.lat)&&Number.isFinite(f.lon)&&Math.abs(f.lat)<=85.05112878&&Math.abs(f.lon)<=180;
@@ -208,7 +210,15 @@ if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=cap
 else{$('photo').removeAttribute('src');$('caption').textContent='Miejsca widziane z góry';$('counter').textContent='0 zdjęć';}
 $('position').textContent=f?(validGPS(f)?cameraDescription(f):'Ten kadr nie ma jeszcze pozycji GPS.'):'Dodaj kadr, aby zobaczyć jego pozycję.';
 ['prev','next','remove','locate','export','title','downloadAll'].forEach(id=>$(id).disabled=!f);
-$('thumbs').replaceChildren();frames.forEach((x,i)=>{const b=document.createElement('button'),im=document.createElement('img');im.src=x.image;im.alt=x.title;b.append(im);b.setAttribute('aria-current',String(i===selected));b.onclick=()=>pick(i);$('thumbs').append(b);});drawMap();
+$('thumbs').replaceChildren();
+if(!project.viewer){
+const first=Math.max(0,selected-3),last=Math.min(frames.length,selected+4);
+for(let i=first;i<last;i++){
+const b=document.createElement('button');b.textContent=String(i+1).padStart(2,'0')+' · '+captionFor(frames[i],i);
+b.setAttribute('aria-current',String(i===selected));b.onclick=()=>pick(i);$('thumbs').append(b);
+}
+}
+drawMap();
 }
 
 $('showAll').onchange=drawMap;$('showOthers').onchange=drawMap;
@@ -272,12 +282,36 @@ const time=video.currentTime,gps=telemetry.find(x=>time>=x.start&&time<x.end);
 frames.push({width:canvas.width,height:canvas.height,title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.98),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?telemetrySource:null,yaw:gps?gps.yaw:null,pitch:gps?gps.pitch:null,directionSource:gps&&Number.isFinite(gps.yaw)?telemetrySource+' kamery':null});
 selected=frames.length-1;render();if(gps&&map)map.setView([gps.lat,gps.lon],17);status(gps?'Kadr dodany z pozycją GPS.':'Kadr dodany. Możesz wskazać jego pozycję na mapie.');
 };
-$('export').onclick=()=>{
+
+async function framesJsonBlob(viewer,items){
+const parts=[viewer?'{"viewer":true,"frames":[':'{"version":1,"frames":['];
+for(let i=0;i<items.length;i++){
+if(i)parts.push(',');
+parts.push(new Blob([JSON.stringify(items[i]).replace(/</g,'\\u003c')]));
+if(i%4===0){status('Przygotowanie zdjęć: '+(i+1)+' / '+items.length);await new Promise(resolve=>setTimeout(resolve,0));}
+}
+parts.push(']}');return new Blob(parts,{type:'application/json'});
+}
+function downloadBlob(blob,name){
+const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),120000);
+}
+$('export').onclick=async()=>{
 if(!frames.length)return;
-const payload=JSON.stringify({viewer:true,frames}).replace(/</g,'\\u003c');
+const button=$('export');button.disabled=true;
+try{
+const payload=await framesJsonBlob(true,frames.slice());
 const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('<'+'/script>',a);
-const output='<!doctype html>\n'+pristine.slice(0,a)+payload+pristine.slice(b);
-const url=URL.createObjectURL(new Blob([output],{type:'text/html;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='galeria.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);status('Zapisano galerię ze zdjęciami. Wyślij plik znajomym albo dodaj go do repozytorium.');
+downloadBlob(new Blob(['<!doctype html>\n',pristine.slice(0,a),payload,pristine.slice(b)],{type:'text/html;charset=utf-8'}),'galeria.html');
+status('Galeria przygotowana. Sprawdź pobrany plik w folderze Pobrane.');
+}catch(error){status('Eksport nie powiódł się: '+error.message);}
+finally{button.disabled=!frames.length;}
 };
+$('saveProject').onclick=async()=>{
+const button=$('saveProject');button.disabled=true;
+try{downloadBlob(await framesJsonBlob(false,frames.slice()),'Widok-projekt.json');status('Projekt przygotowany do pobrania.');}
+catch(error){status('Nie udało się zapisać projektu: '+error.message);}
+finally{button.disabled=false;}
+};
+
 render();if(map)new ResizeObserver(()=>map.invalidateSize()).observe($('map'));if(frames.some(validGPS))$('fit').click();
 </script></body></html>
