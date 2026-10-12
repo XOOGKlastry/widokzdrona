@@ -27,8 +27,8 @@
 <section class="panel author">
 <h2>1. Wybierz moment. Zachowaj widok.</h2>
 <p>Otwórz film z komputera. Zatrzymaj obraz i dodaj wybrany kadr. Film nie jest wysyłany na serwer.</p>
-<div class="row"><label class="file">Otwórz film <input id="videoFile" type="file" accept="video/*" hidden></label><label class="file">Dodaj pasujący SRT <input id="srtFile" type="file" accept=".srt" hidden></label><span id="sourceName" class="muted">Brak filmu</span></div>
-<video id="video" controls preload="metadata" playsinline></video>
+<div class="row"><button id="autoOpen" class="primary" hidden>Otwórz DJI — automatyczna telemetria</button><label class="file" id="manualOpen">Otwórz film <input id="videoFile" type="file" accept="video/*" hidden></label><label class="file">Dodaj pasujący SRT <input id="srtFile" type="file" accept=".srt" hidden></label><span id="sourceName" class="muted">Brak filmu</span></div>
+<p class="author" id="localHelp">Automatyczny odczyt z filmu: uruchom Start-Widok.ps1 z pobranego repozytorium.</p><video id="video" controls preload="metadata" playsinline></video>
 <input id="seek" type="range" min="0" max="0" value="0" step="0.01" aria-label="Moment filmu" disabled>
 <div class="row"><label>Sekunda filmu <input id="seconds" type="number" min="0" value="0" step="0.01" style="width:110px"></label><button id="go">Przejdź</button><button id="back">−0,1 s</button><button id="forward">+0,1 s</button><button class="primary" id="capture" disabled>＋ Dodaj ten kadr</button></div>
 <p class="muted">Zapis: JPEG do 1920 px. Wybór z dokładnością czasową przeglądarki, nie gwarantuje dokładności jednej klatki. Jeżeli film H.265 nie działa, użyj kopii H.264.</p>
@@ -155,6 +155,28 @@ video.onseeking=()=>{$('capture').disabled=true;};
 video.onseeked=video.onloadeddata=()=>{$('capture').disabled=video.readyState<2;};
 video.onerror=()=>{status('Nie można odtworzyć filmu. Przygotuj kopię MP4 H.264 w FFmpeg.');$('capture').disabled=true;};
 $('videoFile').onchange=e=>{const file=e.target.files[0];if(!file)return;if(videoURL)URL.revokeObjectURL(videoURL);telemetry=[];$('srtFile').value='';$('srtStatus').textContent='Dodaj SRT pasujący do nowego filmu albo wskaż pozycje ręcznie.';$('capture').disabled=true;videoURL=URL.createObjectURL(file);video.src=videoURL;$('sourceName').textContent=file.name;video.load();};
+
+let telemetrySource='SRT';
+const localToken=new URLSearchParams(location.search).get('token');
+const localHelper=location.origin==='http://localhost:8765'&&!!localToken&&!project.viewer;
+$('autoOpen').hidden=!localHelper;
+if(localHelper){$('manualOpen').hidden=true;$('localHelp').textContent='Wybierz oryginalny film DJI. ExifTool odczyta telemetrię automatycznie na tym komputerze.';}
+$('autoOpen').onclick=async()=>{
+video.pause();video.removeAttribute('src');video.load();telemetry=[];$('capture').disabled=true;
+$('autoOpen').disabled=true;status('Wybierz film w oknie Windows. Następnie trwa odczyt telemetrii — duży film może wymagać chwili.');
+try{
+const response=await fetch('/open',{method:'POST',headers:{'X-Widok-Token':localToken}});
+const data=await response.json();if(!response.ok)throw Error(data.error||'Błąd odczytu');
+if(data.cancelled){status('Anulowano wybór filmu.');return;}
+telemetry=data.samples.filter(x=>Number.isFinite(x.start)&&Number.isFinite(x.end)&&x.end>x.start);
+telemetrySource='ExifTool';video.src=data.url;video.load();$('sourceName').textContent=data.name;
+const complete=telemetry.filter(x=>validGPS(x)&&Number.isFinite(x.yaw)).length;
+$('srtStatus').textContent='ExifTool: '+telemetry.length+' próbek, '+complete+' z GPS i kierunkiem kamery.';
+status(complete?'Film i telemetria gotowe. Wybierz moment i dodaj kadr.':'Film otwarty, ale nie rozpoznano zsynchronizowanych pozycji i kierunków. Nie zostaną zastąpione zgadywanymi danymi.');
+}catch(error){status('Nie udało się otworzyć filmu: '+error.message);}
+finally{$('autoOpen').disabled=false;}
+};
+
 function parseSRT(text){
 const entries=[];for(const block of text.replace(/\r/g,'').split(/\n\s*\n/)){
 const timing=block.match(/(\d{2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/);
@@ -168,13 +190,13 @@ f.pitch=pitch&&Number.isFinite(Number(pitch[1]))?Number(pitch[1]):null;
 if(validGPS(f)&&f.end>=f.start)entries.push(f);
 }return entries.sort((a,b)=>a.start-b.start);
 }
-$('srtFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>30e6){status('Plik SRT jest za duży (limit 30 MB).');return;}try{telemetry=parseSRT(await file.text());$('srtStatus').textContent=telemetry.length?'Wczytano '+telemetry.length+' pozycji. Czas SRT musi odpowiadać temu samemu, nieprzyciętemu filmowi.':'Nie rozpoznano GPS latitude/longitude. Pozycję można wskazać ręcznie.';}catch(error){status('Nie udało się odczytać SRT: '+error.message);}};
+$('srtFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>30e6){status('Plik SRT jest za duży (limit 30 MB).');return;}try{telemetrySource='SRT';telemetry=parseSRT(await file.text());$('srtStatus').textContent=telemetry.length?'Wczytano '+telemetry.length+' pozycji. Czas SRT musi odpowiadać temu samemu, nieprzyciętemu filmowi.':'Nie rozpoznano GPS latitude/longitude. Pozycję można wskazać ręcznie.';}catch(error){status('Nie udało się odczytać SRT: '+error.message);}};
 $('capture').onclick=()=>{
 if(video.seeking||video.readyState<2)return;video.pause();
 const canvas=document.createElement('canvas'),scale=Math.min(1,1920/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
 canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
 const time=video.currentTime,gps=telemetry.find(x=>time>=x.start&&time<x.end);
-frames.push({title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.85),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?'SRT':null,yaw:gps?gps.yaw:null,pitch:gps?gps.pitch:null,directionSource:gps&&Number.isFinite(gps.yaw)?'SRT kamery':null});
+frames.push({title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.85),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?telemetrySource:null,yaw:gps?gps.yaw:null,pitch:gps?gps.pitch:null,directionSource:gps&&Number.isFinite(gps.yaw)?telemetrySource+' kamery':null});
 selected=frames.length-1;render();if(gps&&map)map.setView([gps.lat,gps.lon],17);status(gps?'Kadr dodany z pozycją GPS.':'Kadr dodany. Możesz wskazać jego pozycję na mapie.');
 };
 $('export').onclick=()=>{
