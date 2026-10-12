@@ -2,7 +2,7 @@ name: Windows portable
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'index.html', 'Start-Widok.ps1', '.github/workflows/windows.yml']
+    paths: ['tests/**', 'desktop/**', 'index.html', 'Start-Widok.ps1', '.github/workflows/windows.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,6 +11,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Test large gallery export
+        shell: pwsh
+        run: |
+          node tests/large-gallery.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Gallery export regression failed' }
+          python tests/check-gallery.py
+          if ($LASTEXITCODE -ne 0) { throw 'Gallery ZIP validation failed' }
       - name: Validate PowerShell and compile launcher
         shell: powershell
         run: |
