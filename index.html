@@ -33,7 +33,7 @@
 #downloadAll{font-size:12px;padding:8px 14px}#downloadStatus{font-size:12px}
 @media(max-width:600px){.photo-arrow{width:40px;height:40px}.photo-arrow.prev{left:8px}.photo-arrow.next{right:8px}#resolution{display:none}#downloadStatus{display:none}}
 </style></head><body><main>
-<header class="author"><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
+<header class="author"><div class="row"><button id="saveProject">Zapisz projekt</button><label class="file">Otwórz projekt<input id="loadProject" type="file" accept=".json" hidden></label></div><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
 <section class="panel author">
 <h2>1. Wybierz moment. Zachowaj widok.</h2>
 <p>Otwórz film z komputera. Zatrzymaj obraz i dodaj wybrany kadr. Film nie jest wysyłany na serwer.</p>
@@ -147,6 +147,23 @@ finally{b.disabled=!frames.length;}
 };
 document.addEventListener('keydown',e=>{if(!project.viewer||!frames.length||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='ArrowLeft'){$('prev').click();e.preventDefault();}if(e.key==='ArrowRight'){$('next').click();e.preventDefault();}});
 
+
+$('saveProject').onclick=()=>{
+const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,frames})],{type:'application/json'})),a=document.createElement('a');
+a.href=url;a.download='Widok-projekt.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+status('Projekt zapisany ze zdjęciami i telemetrią. Film pozostaje osobnym plikiem.');
+};
+$('loadProject').onchange=async e=>{
+const file=e.target.files[0];if(!file)return;
+try{
+const p=JSON.parse(await file.text());
+if(p.version!==1||!Array.isArray(p.frames)||!p.frames.every(f=>f&&typeof f.title==='string'&&typeof f.image==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=\r\n]+$/.test(f.image)&&Number.isFinite(f.time)&&f.time>=0))throw Error('Niepoprawny plik projektu');
+if(frames.length&&!confirm('Zastąpić bieżący projekt? Zapisz go wcześniej, aby zachować zmiany.'))return;
+frames=p.frames;selected=0;render();if(map)$('fit').click();status('Projekt otwarty.');
+}catch(error){status('Nie można otworzyć projektu: '+error.message);}
+e.target.value='';
+};
+
 function render(){
 const f=frames[selected];$('photo').hidden=!f;$('empty').hidden=!!f;
 if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=captionFor(f,selected);$('resolution').textContent=f.width&&f.height?f.width+' × '+f.height+' px':'';$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;}
@@ -176,7 +193,7 @@ $('videoFile').onchange=e=>{const file=e.target.files[0];if(!file)return;if(vide
 
 let telemetrySource='SRT';
 const localToken=new URLSearchParams(location.search).get('token');
-const localHelper=location.origin==='http://localhost:8765'&&!!localToken&&!project.viewer;
+const localHelper=location.hostname==='localhost'&&!!localToken&&!project.viewer;
 $('autoOpen').hidden=!localHelper;
 if(localHelper){$('manualOpen').hidden=true;$('localHelp').textContent='Wybierz oryginalny film DJI. ExifTool odczyta telemetrię automatycznie na tym komputerze.';}
 $('autoOpen').onclick=async()=>{
