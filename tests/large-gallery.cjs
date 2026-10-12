@@ -1,0 +1,24 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8');
+const scripts=Array.from(html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi));
+assert.equal(scripts.length,3);
+new vm.Script(scripts[2][1]);
+const code=scripts[2][1];
+const start=code.indexOf('function captionFor('),end=code.indexOf("$('downloadAll').onclick");
+const context={Blob,TextEncoder,Uint8Array,Uint32Array,DataView,atob,fetch,pristine:html,status:()=>{},$:()=>({}),setTimeout:callback=>{callback();},frames:[]};
+vm.createContext(context);
+vm.runInContext(code.slice(start,end)+';globalThis.api={folderGallery,jpegBlob,blobCrc};',context);
+(async()=>{
+assert.equal(await context.api.blobCrc(new Blob(['123456789'])),0xcbf43926);
+const photo=Buffer.alloc(1024*1024,0x61);
+photo[0]=255;photo[1]=216;photo[photo.length-2]=255;photo[photo.length-1]=217;
+const image='data:image/jpeg;base64,'+photo.toString('base64');
+const items=Array.from({length:92},(_,i)=>({image,title:i===0?'Łąka </script>':('Kadr '+(i+1)),time:i,lat:49.9,lon:20.4,yaw:i,pitch:-30,width:3840,height:2160}));
+const decoded=await context.api.jpegBlob(image);
+assert.deepEqual(Buffer.from(await decoded.arrayBuffer()),photo);
+const zip=await context.api.folderGallery(items);
+const target=path.join(process.env.RUNNER_TEMP||'.','gallery-regression.zip');
+fs.writeFileSync(target,Buffer.from(await zip.arrayBuffer()));
+console.log('PASS: JavaScript syntax, CRC32, byte-identical JPEG decoding, export 92 x 1 MiB synthetic photo payloads to '+target);
+})().catch(error=>{console.error(error);process.exitCode=1;});
