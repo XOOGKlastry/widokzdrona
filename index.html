@@ -33,7 +33,7 @@
 #downloadAll{font-size:12px;padding:8px 14px}#downloadStatus{font-size:12px}
 @media(max-width:600px){.photo-arrow{width:40px;height:40px}.photo-arrow.prev{left:8px}.photo-arrow.next{right:8px}#resolution{display:none}#downloadStatus{display:none}}
 </style></head><body><main>
-<header class="author"><div class="row"><label class="file">Połącz galerie<input id="mergeGalleries" type="file" accept=".html,.htm,.json" multiple hidden></label><button id="saveProject">Zapisz projekt</button><label class="file">Otwórz projekt<input id="loadProject" type="file" accept=".json" hidden></label></div><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
+<header class="author"><div class="row"><label class="file">Połącz galerie<input id="mergeGalleries" type="file" accept=".html,.htm,.json" multiple hidden></label><button id="saveProject">Zapisz projekt</button><label class="file">Otwórz projekt<input id="loadProject" type="file" accept=".json" hidden></label></div><div class="row"><button class="author primary" id="exportFolder">Pobierz galerię ZIP — duży album</button><button class="author" id="export">Pojedynczy HTML — mały album</button></div></header>
 <section class="panel author">
 <h2>1. Wybierz moment. Zachowaj widok.</h2>
 <p>Otwórz film z komputera. Zatrzymaj obraz i dodaj wybrany kadr. Film nie jest wysyłany na serwer.</p>
@@ -120,28 +120,81 @@ function photoFilename(f,i){
 const name=captionFor(f,i).normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').replace(/[. ]+$/g,'').slice(0,100)||'Kadr';
 return String(i+1).padStart(3,'0')+' - '+name+'.jpg';
 }
-function crc32(bytes){let c=0xffffffff;for(const b of bytes){c^=b;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
+
+const CRC_TABLE=Uint32Array.from({length:256},(_,i)=>{let c=i;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0);return c>>>0;});
+function crc32(bytes,seed=0xffffffff){let c=seed;for(let i=0;i<bytes.length;i++)c=CRC_TABLE[(c^bytes[i])&255]^(c>>>8);return c>>>0;}
 function zipHeader(size){const bytes=new Uint8Array(size);return {bytes,view:new DataView(bytes.buffer)};}
-async function photoZip(items){
-const parts=[],directory=[];let offset=0,dirSize=0;
-for(let i=0;i<items.length;i++){
-const f=items[i],name=new TextEncoder().encode(photoFilename(f,i));
-const response=await fetch(f.image);if(!response.ok)throw Error('Nie można odczytać zdjęcia '+(i+1));
-const bytes=new Uint8Array(await response.arrayBuffer()),crc=crc32(bytes);
-if(offset+bytes.length+name.length+30>0xffffffff)throw Error('Archiwum przekracza limit 4 GB.');
-const local=zipHeader(30),v=local.view;
-v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x800,true);v.setUint16(12,33,true);v.setUint32(14,crc,true);v.setUint32(18,bytes.length,true);v.setUint32(22,bytes.length,true);v.setUint16(26,name.length,true);
-parts.push(local.bytes,name,bytes);
-const central=zipHeader(46),c=central.view;c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);c.setUint16(14,33,true);c.setUint32(16,crc,true);c.setUint32(20,bytes.length,true);c.setUint32(24,bytes.length,true);c.setUint16(28,name.length,true);c.setUint32(42,offset,true);
-directory.push(central.bytes,name);dirSize+=46+name.length;offset+=30+name.length+bytes.length;
-$('downloadStatus').textContent='Pakowanie '+(i+1)+' / '+items.length;
+async function blobCrc(blob){
+let c=0xffffffff;
+for(let i=0;i<blob.size;i+=1048576){
+c=crc32(new Uint8Array(await blob.slice(i,i+1048576).arrayBuffer()),c);
 await new Promise(resolve=>setTimeout(resolve,0));
 }
-if(items.length>65535||offset+dirSize>0xffffffff)throw Error('Za duże archiwum ZIP.');
-const end=zipHeader(22),e=end.view;e.setUint32(0,0x06054b50,true);e.setUint16(8,items.length,true);e.setUint16(10,items.length,true);e.setUint32(12,dirSize,true);e.setUint32(16,offset,true);
+return (c^0xffffffff)>>>0;
+}
+async function jpegBlob(source){
+if(!source.startsWith('data:image/jpeg;base64,')){
+const response=await fetch(source);if(!response.ok)throw Error('Nie można odczytać zdjęcia.');return response.blob();
+}
+const start=source.indexOf(',')+1,parts=[];
+for(let i=start;i<source.length;i+=524288){
+const raw=atob(source.slice(i,i+524288)),bytes=new Uint8Array(raw.length);
+for(let j=0;j<raw.length;j++)bytes[j]=raw.charCodeAt(j);
+parts.push(new Blob([bytes]));
+await new Promise(resolve=>setTimeout(resolve,0));
+}
+return new Blob(parts,{type:'image/jpeg'});
+}
+async function buildZip(entries,progress=()=>{}){
+if(entries.length>65535)throw Error('Za dużo plików w ZIP.');
+const parts=[],directory=[];let offset=0,dirSize=0;
+for(let i=0;i<entries.length;i++){
+const entry=entries[i],name=new TextEncoder().encode(entry.name),blob=entry.blob;
+if(name.length>65535||blob.size>0xffffffff||offset+blob.size+name.length+30>0xffffffff)throw Error('Archiwum przekracza limit 4 GB. Podziel album.');
+const crc=await blobCrc(blob),local=zipHeader(30),v=local.view;
+v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x800,true);v.setUint16(12,33,true);v.setUint32(14,crc,true);v.setUint32(18,blob.size,true);v.setUint32(22,blob.size,true);v.setUint16(26,name.length,true);
+parts.push(local.bytes,name,blob);
+const central=zipHeader(46),c=central.view;c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);c.setUint16(14,33,true);c.setUint32(16,crc,true);c.setUint32(20,blob.size,true);c.setUint32(24,blob.size,true);c.setUint16(28,name.length,true);c.setUint32(42,offset,true);
+directory.push(central.bytes,name);dirSize+=46+name.length;offset+=30+name.length+blob.size;
+progress(i+1,entries.length);
+}
+if(offset+dirSize+22>0xffffffff)throw Error('Archiwum przekracza limit 4 GB. Podziel album.');
+const end=zipHeader(22),e=end.view;e.setUint32(0,0x06054b50,true);e.setUint16(8,entries.length,true);e.setUint16(10,entries.length,true);e.setUint32(12,dirSize,true);e.setUint32(16,offset,true);
 return new Blob([...parts,...directory,end.bytes],{type:'application/zip'});
 }
+async function photoZip(items){
+const entries=[];
+for(let i=0;i<items.length;i++){entries.push({name:photoFilename(items[i],i),blob:await jpegBlob(items[i].image)});$('downloadStatus').textContent='Zdjęcie '+(i+1)+' / '+items.length;}
+return buildZip(entries,(i,n)=>{$('downloadStatus').textContent='Pakowanie '+i+' / '+n;});
+}
+function galleryDocument(payload){
+const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('<'+'/script>',a);
+if(a<start.length||b<0)throw Error('Nieprawidłowy szablon galerii.');
+return new Blob(['<!doctype html>\n',pristine.slice(0,a),payload,pristine.slice(b)],{type:'text/html;charset=utf-8'});
+}
+async function folderGallery(items){
+const photos=[],relativeFrames=[];
+for(let i=0;i<items.length;i++){
+const name=photoFilename(items[i],i);
+photos.push({name,blob:await jpegBlob(items[i].image)});
+relativeFrames.push({...items[i],image:'zdjecia/'+encodeURIComponent(name)});
+status('Przygotowanie oryginałów '+(i+1)+' / '+items.length);
+}
+const allPhotos=await buildZip(photos,(i,n)=>status('Pakowanie zdjęć '+i+' / '+n));
+const payload=JSON.stringify({viewer:true,photosArchive:true,frames:relativeFrames}).replace(/</g,'\\u003c');
+const instructions='Rozpakuj CAŁE archiwum, następnie otwórz galeria.html. Zachowaj folder zdjecia obok HTML. Zdjęcia są w pełnej zapisanej jakości. Mapa wymaga internetu. Zdjecia-z-drona.zip obsługuje przycisk pobierania wszystkich zdjęć; dlatego paczka zawiera również drugą kopię zdjęć w tym archiwum.';
+const entries=[{name:'galeria.html',blob:galleryDocument(payload)},{name:'CZYTAJ.txt',blob:new Blob([instructions])},...photos.map(p=>({name:'zdjecia/'+p.name,blob:p.blob})),{name:'Zdjecia-z-drona.zip',blob:allPhotos}];
+return buildZip(entries,(i,n)=>status('Budowanie galerii '+i+' / '+n));
+}
+$('exportFolder').onclick=async()=>{
+if(!frames.length)return;
+const b=$('exportFolder');b.disabled=true;
+try{downloadBlob(await folderGallery(frames.map(f=>({...f}))),'Galeria-z-drona.zip');status('ZIP gotowy. Rozpakuj całość i otwórz galeria.html.');}
+catch(error){status('Nie udało się przygotować paczki: '+error.message);}
+finally{b.disabled=!frames.length;}
+};
 $('downloadAll').onclick=async()=>{
+if(project.photosArchive){const a=document.createElement('a');a.href='Zdjecia-z-drona.zip';a.download='Zdjecia-z-drona.zip';a.click();return;}
 const b=$('downloadAll');b.disabled=true;
 try{const blob=await photoZip(frames.map(f=>({...f})));const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Zdjecia-z-drona.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$('downloadStatus').textContent='ZIP gotowy';}
 catch(error){$('downloadStatus').textContent=error.message;}
@@ -172,7 +225,7 @@ const trimmed=text.trim();
 if(trimmed.startsWith('{'))return JSON.parse(trimmed);
 const match=text.match(/<script\b(?=[^>]*\bid\s*=\s*["']project["'])(?=[^>]*\btype\s*=\s*["']application\/json["'])[^>]*>([\s\S]*?)<[/]script\s*>/i);
 if(!match)throw Error('To nie jest galeria wyeksportowana z Widoku z drona.');
-return JSON.parse(match[1]);
+const data=JSON.parse(match[1]);if(data.photosArchive)throw Error('Ta galeria korzysta z osobnego folderu zdjęć. Do łączenia użyj zapisanego projektu JSON lub oryginalnych galerii z osadzonymi zdjęciami.');return data;
 }
 function validatedGalleryFrames(data){
 if(!data||!Array.isArray(data.frames))throw Error('Brak listy zdjęć.');
@@ -206,10 +259,10 @@ finally{input.disabled=false;input.value='';}
 
 function render(){
 const f=frames[selected];$('photo').hidden=!f;$('empty').hidden=!!f;
-if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=captionFor(f,selected);$('resolution').textContent=f.width&&f.height?f.width+' × '+f.height+' px':'';$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;}
+if(f){if($('photo').getAttribute('src')!==f.image)$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=captionFor(f,selected);$('resolution').textContent=f.width&&f.height?f.width+' × '+f.height+' px':'';$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;}
 else{$('photo').removeAttribute('src');$('caption').textContent='Miejsca widziane z góry';$('counter').textContent='0 zdjęć';}
 $('position').textContent=f?(validGPS(f)?cameraDescription(f):'Ten kadr nie ma jeszcze pozycji GPS.'):'Dodaj kadr, aby zobaczyć jego pozycję.';
-['prev','next','remove','locate','export','title','downloadAll'].forEach(id=>$(id).disabled=!f);
+['prev','next','remove','locate','export','exportFolder','title','downloadAll'].forEach(id=>$(id).disabled=!f);
 $('thumbs').replaceChildren();
 if(!project.viewer){
 const first=Math.max(0,selected-3),last=Math.min(frames.length,selected+4);
@@ -299,6 +352,8 @@ $('export').onclick=async()=>{
 if(!frames.length)return;
 const button=$('export');button.disabled=true;
 try{
+const estimated=frames.reduce((n,f)=>n+(f.image||'').length,0);
+if(estimated>80000000){status('Ten album jest za duży na pojedynczy HTML. Użyj „Pobierz galerię ZIP — duży album”, aby zachować pełną jakość.');return;}
 const payload=await framesJsonBlob(true,frames.slice());
 const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('<'+'/script>',a);
 downloadBlob(new Blob(['<!doctype html>\n',pristine.slice(0,a),payload,pristine.slice(b)],{type:'text/html;charset=utf-8'}),'galeria.html');
