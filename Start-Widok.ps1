@@ -1,9 +1,10 @@
+param([int]$Port = 8765, [switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 if (-not (Get-Command exiftool -ErrorAction SilentlyContinue)) { throw 'ExifTool is not in PATH.' }
 $index = Join-Path $PSScriptRoot 'index.html'
 if (-not (Test-Path $index)) { throw 'Put Start-Widok.ps1 next to index.html.' }
-$origin = 'http://localhost:8765'
+$origin = "http://localhost:$Port"
 $token = [Guid]::NewGuid().ToString('N')
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("$origin/")
@@ -58,14 +59,14 @@ function Read-Telemetry([string]$path) {
     return ,$rows
 }
 Write-Host "Widok z drona: $origin - close this window to stop."
-Start-Process "$origin/?token=$token"
+if ($NoBrowser) { Write-Output "READY:$origin/?token=$token" } else { Start-Process "$origin/?token=$token" }
 try {
 while ($listener.IsListening) {
     $ctx=$listener.GetContext()
     $script:responseStarted = $false
     try {
         $req=$ctx.Request
-        if ($req.Headers['Host'] -ne 'localhost:8765') { Send-Json $ctx @{error='Invalid host'} 403; continue }
+        if ($req.Headers['Host'] -ne "localhost:$Port") { Send-Json $ctx @{error='Invalid host'} 403; continue }
         $route=$req.Url.AbsolutePath
         if ($route -eq '/' -and $req.HttpMethod -eq 'GET') {
             $bytes=[IO.File]::ReadAllBytes($index)
