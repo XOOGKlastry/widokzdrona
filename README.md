@@ -11,14 +11,18 @@ Edytor wybranych kadrów z filmu i prosta galeria zdjęć z mapą Esri World Ima
 5. Nadaj opis. Jeżeli brak GPS, wybierz **Wskaż pozycję na mapie** i kliknij pozycję drona.
 6. Kliknij **Pobierz galerię dla znajomych**. Plik `galeria.html` zawiera zdjęcia i otwiera się od razu jako galeria, bez panelu edycji. Zapisz go przed zamknięciem edytora: sesja edycji nie jest automatycznie zachowywana.
 
+## Widok dla znajomych
+
+Eksportowana galeria pokazuje zdjęcie u góry i mapę pod nim w jednym ekranie. Bez nagłówka i panelu autora. Po aktualizacji trzeba ponownie wyeksportować `galeria.html`: wcześniej pobrane pliki nie aktualizują się automatycznie.
+
 ## Mapa
 
 - Aktywny punkt: 36 px, zielony, z numerem.
-- Pozostałe: szare punkty 8 px; obszar kliknięcia 44 px.
+- Pozostałe: szare punkty 11 px; obszar kliknięcia 44 px.
 - **Pokaż szare** ukrywa pozostałe punkty.
 - **Pokaż znaczniki** ukrywa wszystkie punkty, zostawia podkład.
 - Kliknięcie punktu wybiera zdjęcie i przewija do galerii. Dla nakładających się punktów pojawia się lista kadrów w tym miejscu.
-- Punkty oznaczają pozycję drona, nie środek fotografowanej sceny. Brak kierunków kamery: ta wersja nie odczytuje yaw/pitch.
+- Punkty oznaczają pozycję drona, nie środek fotografowanej sceny. Kierunek kamery jest odczytywany z jawnych pól `gimbal_yaw` / `camera_yaw` oraz `gimbal_pitch` / `camera_pitch` w SRT. Sam GPS ani yaw kadłuba nie są używane do zgadywania kierunku. W edytorze można podać azymut ręcznie (0° północ, 90° wschód) lub zaznaczyć widok pionowo w dół. Strzałka i wachlarz są schematem kierunku, nie obliczonym zasięgiem zdjęcia na gruncie.
 
 ## GitHub Pages
 
