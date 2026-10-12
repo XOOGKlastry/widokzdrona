@@ -22,6 +22,16 @@
 .viewer #map{height:auto;min-height:0;flex:1}
 .viewer #overlap{max-height:40px;overflow:auto;flex-wrap:nowrap}
 @media(max-height:550px){.viewer .maphead p{display:none}.viewer main{padding:4px;gap:4px}}
+
+.caption-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #dce1d6;background:#fff;border-radius:12px;padding:9px 16px;margin-bottom:8px;min-width:0}
+.caption-bar h2{font-size:15px;font-weight:500;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#resolution{font-size:11px;color:#6c7d72;white-space:nowrap}
+.photo-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:48px;height:48px;display:grid;place-items:center;padding:0;border:1px solid #ffffff70;border-radius:50%;color:white;background:#15352bb3;backdrop-filter:blur(12px);box-shadow:0 4px 16px #0003;transition:background .15s}
+.photo-arrow:hover{background:#234e40}.photo-arrow svg{width:24px;height:24px}.photo-arrow.prev{left:18px}.photo-arrow.next{right:18px}
+.viewer #gallery{grid-template-rows:40px minmax(0,1fr) 44px;gap:4px}
+.viewer .caption-bar{margin:0;padding:7px 14px}.viewer #caption{display:block}
+#downloadAll{font-size:12px;padding:8px 14px}#downloadStatus{font-size:12px}
+@media(max-width:600px){.photo-arrow{width:40px;height:40px}.photo-arrow.prev{left:8px}.photo-arrow.next{right:8px}#resolution{display:none}#downloadStatus{display:none}}
 </style></head><body><main>
 <header class="author"><button class="author primary" id="export">Pobierz galerię dla znajomych</button></header>
 <section class="panel author">
@@ -31,18 +41,18 @@
 <p class="author" id="localHelp">Automatyczny odczyt z filmu: uruchom Start-Widok.ps1 z pobranego repozytorium.</p><video id="video" controls preload="metadata" playsinline></video>
 <input id="seek" type="range" min="0" max="0" value="0" step="0.01" aria-label="Moment filmu" disabled>
 <div class="row"><label>Sekunda filmu <input id="seconds" type="number" min="0" value="0" step="0.01" style="width:110px"></label><button id="go">Przejdź</button><button id="back">−0,1 s</button><button id="forward">+0,1 s</button><button class="primary" id="capture" disabled>＋ Dodaj ten kadr</button></div>
-<p class="muted">Zapis: JPEG do 1920 px. Wybór z dokładnością czasową przeglądarki, nie gwarantuje dokładności jednej klatki. Jeżeli film H.265 nie działa, użyj kopii H.264.</p>
+<p class="muted">Zapis: JPEG w pełnej rozdzielczości filmu, jakość 98%. Wybór z dokładnością czasową przeglądarki, nie gwarantuje dokładności jednej klatki. Jeżeli film H.265 nie działa, użyj kopii H.264.</p>
 <p id="srtStatus" class="muted">SRT jest opcjonalny. Bez GPS wskaż pozycję kadru na mapie.</p>
 </section>
 <div class="author" id="status" role="status" aria-live="polite"></div>
-<section id="gallery"><div class="hero"><img id="photo" alt="" hidden><div class="empty" id="empty">Twoja galeria zacznie się od pierwszego kadru.</div></div>
-<div class="row gallery-nav" style="justify-content:space-between;margin-top:16px"><div><h2 id="caption">Miejsca widziane z góry</h2><span id="counter" class="muted">0 zdjęć</span></div><div class="row"><button id="prev" aria-label="Poprzednie zdjęcie">←</button><button id="next" aria-label="Następne zdjęcie">→</button></div></div>
+<section id="gallery"><div class="caption-bar"><h2 id="caption">Kadr 1</h2><span id="resolution"></span></div><div class="hero"><button id="prev" class="photo-arrow prev" aria-label="Poprzednie zdjęcie"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 5l-7 7 7 7"/></svg></button><button id="next" class="photo-arrow next" aria-label="Następne zdjęcie"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 5l7 7-7 7"/></svg></button><img id="photo" alt="" hidden><div class="empty" id="empty">Twoja galeria zacznie się od pierwszego kadru.</div></div>
+<div class="row gallery-nav" style="justify-content:space-between;margin-top:16px"><div><span id="counter" class="muted">0 zdjęć</span></div><div class="row"><span id="downloadStatus" role="status"></span><button id="downloadAll">↓ Pobierz wszystkie zdjęcia</button></div></div>
 <div id="thumbs" class="thumbs"></div>
-<div class="row author"><label>Opis <input id="title" type="text" maxlength="160" placeholder="Nazwij to miejsce"></label><button id="locate">Wskaż pozycję na mapie</button><button id="aim" class="primary">Wskaż, gdzie patrzy obiektyw</button><button id="cancelAim" hidden>Anuluj wskazywanie</button><button id="remove">Usuń kadr</button><label>Kierunek kamery ° <input id="yaw" type="number" min="0" max="360" step="1" placeholder="Brak danych" style="width:130px"></label><label><input id="nadir" type="checkbox"> Obiektyw pionowo w dół</label></div>
+<div class="row author"><label>Opis <input id="title" type="text" maxlength="160" placeholder="Nazwij to miejsce"></label><button id="locate">Wskaż pozycję na mapie</button><button id="remove">Usuń kadr</button></div>
 </section>
 <section class="mapwrap" style="margin-top:24px">
 <div class="maphead"><div class="row" style="justify-content:space-between"><div class="row"><label><input id="showOthers" type="checkbox" checked> Pokaż szare</label><label><input id="showAll" type="checkbox" checked> Pokaż znaczniki</label><button id="fit">Wszystkie miejsca</button></div></div><p class="muted">Zielony: wybrane zdjęcie · szare: pozostałe · strzałka: kierunek obiektywu (schemat).</p><div id="position" class="muted"></div><div id="overlap" class="row"></div></div>
-<p class="author" id="mapHint" role="status" style="margin:8px 16px">Aby dodać kierunek, wybierz kadr i wskaż na mapie obiekt widoczny w środku zdjęcia.</p><div id="map" aria-label="Mapa miejsc wykonania zdjęć"></div></section>
+<p class="author" id="mapHint" role="status" hidden></p><div id="map" aria-label="Mapa miejsc wykonania zdjęć"></div></section>
 <footer class="author">Podkład: Esri World Imagery. Znaczniki oznaczają pozycję drona, a nie miejsce widoczne w środku zdjęcia. Mapa wymaga internetu.</footer>
 </main><script id="project" type="application/json">{"viewer":false,"frames":[]}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -62,38 +72,13 @@ L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imager
 map.on('click',e=>{
 if(!frames.length||project.viewer)return;
 const f=frames[selected];
-if(aiming){
-const yaw=bearingTo(f.lat,f.lon,e.latlng.lat,e.latlng.lng);
-if(yaw===null){$('mapHint').textContent='Kliknij obiekt dalej od pozycji drona.';return;}
-Object.assign(f,{yaw,pitch:null,directionSource:'wskazany na mapie'});
-stopPointing();$('showAll').checked=true;render();status('Kierunek obiektywu zapisany dla tego kadru.');return;
-}
 if(!placing)return;
 Object.assign(f,{lat:e.latlng.lat,lon:e.latlng.lng,locationSource:'ręcznie'});
-stopPointing();render();status('Pozycja zapisana. Teraz wskaż, gdzie patrzy obiektyw.');
+stopPointing();render();status('Pozycja zapisana.');
 });
 }else status('Mapa nie załadowała się. Sprawdź internet i odśwież stronę. Galeria nadal działa.');
 
-function bearingTo(lat1,lon1,lat2,lon2){
-const r=Math.PI/180,p1=lat1*r,p2=lat2*r,d=(lon2-lon1)*r;
-const y=Math.sin(d)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(d);
-if(Math.hypot(x,y)<1e-8)return null;
-return (Math.atan2(y,x)/r+360)%360;
-}
-function stopPointing(){
-aiming=false;placing=false;$('cancelAim').hidden=true;
-$('map').style.cursor='';$('mapHint').textContent='Aby dodać kierunek, wskaż obiekt widoczny w środku zdjęcia.';
-}
-$('cancelAim').onclick=stopPointing;
-$('aim').onclick=()=>{
-const f=frames[selected];if(!f||!map)return;
-if(!validGPS(f)){status('Najpierw wskaż pozycję drona na mapie.');$('locate').click();return;}
-placing=false;aiming=true;$('cancelAim').hidden=false;$('map').style.cursor='crosshair';
-$('mapHint').textContent='Kliknij na mapie budynek lub miejsce widoczne w środku tego zdjęcia. Strzałka wskaże ten kierunek.';
-$('showAll').checked=true;drawMap();map.panTo([f.lat,f.lon]);
-$('mapHint').scrollIntoView({block:'center',behavior:'smooth'});
-};
-
+function stopPointing(){placing=false;}
 function pick(i,scroll=false){stopPointing();selected=i;placing=false;render();if(map&&validGPS(frames[i]))map.panTo([frames[i].lat,frames[i].lon]);if(scroll&&!project.viewer)$('gallery').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
 function drawMap(){
 if(!map)return;markers.clearLayers();$('overlap').replaceChildren();$('showOthers').disabled=!$('showAll').checked;
@@ -114,7 +99,7 @@ if(near.length>1){const label=document.createElement('span');label.textContent='
 function cameraDescription(f){
 if(!f)return '';
 if(f.pitch===-90)return 'Obiektyw pionowo w dół';
-return Number.isFinite(f.yaw)?'Kierunek obiektywu: '+Math.round(f.yaw)+'° · '+(f.directionSource||'ręcznie'):'Brak kierunku obiektywu — ustaw w edytorze';
+return Number.isFinite(f.yaw)?'Kierunek obiektywu: '+Math.round(f.yaw)+'° · '+(f.directionSource||'ręcznie'):'Brak kierunku kamery w telemetrii';
 }
 function drawDirection(){
 const f=frames[selected];if(!f||!validGPS(f))return;
@@ -127,23 +112,56 @@ drawing='<g transform="rotate('+angle+' 90 90)"><path d="M90 90 L56 12 Q90 0 124
 L.marker([f.lat,f.lon],{interactive:false,keyboard:false,zIndexOffset:900,icon:L.divIcon({className:'camera-direction',iconSize:[180,180],iconAnchor:[90,90],html:'<svg width="180" height="180" aria-hidden="true">'+drawing+'</svg>'})}).addTo(markers);
 }
 
+
+function captionFor(f,i){return (f.title||'').trim()||'Kadr '+(i+1);}
+function photoFilename(f,i){
+const name=captionFor(f,i).normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').replace(/[. ]+$/g,'').slice(0,100)||'Kadr';
+return String(i+1).padStart(3,'0')+' - '+name+'.jpg';
+}
+function crc32(bytes){let c=0xffffffff;for(const b of bytes){c^=b;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
+function zipHeader(size){const bytes=new Uint8Array(size);return {bytes,view:new DataView(bytes.buffer)};}
+async function photoZip(items){
+const parts=[],directory=[];let offset=0,dirSize=0;
+for(let i=0;i<items.length;i++){
+const f=items[i],name=new TextEncoder().encode(photoFilename(f,i));
+const response=await fetch(f.image);if(!response.ok)throw Error('Nie można odczytać zdjęcia '+(i+1));
+const bytes=new Uint8Array(await response.arrayBuffer()),crc=crc32(bytes);
+if(offset+bytes.length+name.length+30>0xffffffff)throw Error('Archiwum przekracza limit 4 GB.');
+const local=zipHeader(30),v=local.view;
+v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x800,true);v.setUint16(12,33,true);v.setUint32(14,crc,true);v.setUint32(18,bytes.length,true);v.setUint32(22,bytes.length,true);v.setUint16(26,name.length,true);
+parts.push(local.bytes,name,bytes);
+const central=zipHeader(46),c=central.view;c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);c.setUint16(14,33,true);c.setUint32(16,crc,true);c.setUint32(20,bytes.length,true);c.setUint32(24,bytes.length,true);c.setUint16(28,name.length,true);c.setUint32(42,offset,true);
+directory.push(central.bytes,name);dirSize+=46+name.length;offset+=30+name.length+bytes.length;
+$('downloadStatus').textContent='Pakowanie '+(i+1)+' / '+items.length;
+await new Promise(resolve=>setTimeout(resolve,0));
+}
+if(items.length>65535||offset+dirSize>0xffffffff)throw Error('Za duże archiwum ZIP.');
+const end=zipHeader(22),e=end.view;e.setUint32(0,0x06054b50,true);e.setUint16(8,items.length,true);e.setUint16(10,items.length,true);e.setUint32(12,dirSize,true);e.setUint32(16,offset,true);
+return new Blob([...parts,...directory,end.bytes],{type:'application/zip'});
+}
+$('downloadAll').onclick=async()=>{
+const b=$('downloadAll');b.disabled=true;
+try{const blob=await photoZip(frames.map(f=>({...f})));const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Zdjecia-z-drona.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);$('downloadStatus').textContent='ZIP gotowy';}
+catch(error){$('downloadStatus').textContent=error.message;}
+finally{b.disabled=!frames.length;}
+};
+document.addEventListener('keydown',e=>{if(!project.viewer||!frames.length||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='ArrowLeft'){$('prev').click();e.preventDefault();}if(e.key==='ArrowRight'){$('next').click();e.preventDefault();}});
+
 function render(){
 const f=frames[selected];$('photo').hidden=!f;$('empty').hidden=!!f;
-if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=f.title;$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;$('yaw').value=Number.isFinite(f.yaw)?f.yaw:'';$('nadir').checked=f.pitch===-90;}
+if(f){$('photo').src=f.image;$('photo').alt=f.title;$('caption').textContent=captionFor(f,selected);$('resolution').textContent=f.width&&f.height?f.width+' × '+f.height+' px':'';$('counter').textContent=(selected+1)+' / '+frames.length+' · '+clock(f.time);$('title').value=f.title;}
 else{$('photo').removeAttribute('src');$('caption').textContent='Miejsca widziane z góry';$('counter').textContent='0 zdjęć';}
 $('position').textContent=f?(validGPS(f)?cameraDescription(f):'Ten kadr nie ma jeszcze pozycji GPS.'):'Dodaj kadr, aby zobaczyć jego pozycję.';
-['prev','next','remove','locate','export','title','yaw','nadir','aim'].forEach(id=>$(id).disabled=!f);
+['prev','next','remove','locate','export','title','downloadAll'].forEach(id=>$(id).disabled=!f);
 $('thumbs').replaceChildren();frames.forEach((x,i)=>{const b=document.createElement('button'),im=document.createElement('img');im.src=x.image;im.alt=x.title;b.append(im);b.setAttribute('aria-current',String(i===selected));b.onclick=()=>pick(i);$('thumbs').append(b);});drawMap();
 }
 
-$('yaw').onchange=()=>{const f=frames[selected];if(!f)return;const value=$('yaw').value.trim();f.yaw=value!==''&&Number.isFinite(Number(value))?((Number(value)%360)+360)%360:null;f.directionSource='ręcznie';render();};
-$('nadir').onchange=()=>{const f=frames[selected];if(!f)return;f.pitch=$('nadir').checked?-90:null;f.directionSource='ręcznie';render();};
 $('showAll').onchange=drawMap;$('showOthers').onchange=drawMap;
 $('fit').onclick=()=>{const pts=frames.filter(validGPS).map(f=>[f.lat,f.lon]);if(map&&pts.length)map.fitBounds(pts,{padding:[45,45],maxZoom:18});};
 $('prev').onclick=()=>pick((selected-1+frames.length)%frames.length);
 $('next').onclick=()=>pick((selected+1)%frames.length);
-$('title').onchange=()=>{if(frames[selected]){frames[selected].title=$('title').value.trim()||'Kadr '+(selected+1);render();}};
-$('locate').onclick=()=>{if(!map)return;stopPointing();placing=true;$('cancelAim').hidden=false;$('map').style.cursor='crosshair';$('mapHint').textContent='Kliknij pozycję drona w momencie zrobienia zdjęcia.';status('Kliknij na mapie miejsce, w którym znajdował się dron.');};
+$('title').oninput=()=>{if(frames[selected]){frames[selected].title=$('title').value;$('caption').textContent=captionFor(frames[selected],selected);}};
+$('locate').onclick=()=>{if(!map)return;stopPointing();placing=true;$('map').style.cursor='crosshair';$('mapHint').textContent='Kliknij pozycję drona w momencie zrobienia zdjęcia.';status('Kliknij na mapie miejsce, w którym znajdował się dron.');};
 $('remove').onclick=()=>{frames.splice(selected,1);selected=Math.max(0,Math.min(selected,frames.length-1));render();};
 function seek(t){if(!Number.isFinite(video.duration))return;video.pause();video.currentTime=Math.max(0,Math.min(video.duration,t));}
 $('go').onclick=()=>seek(Number($('seconds').value));
@@ -193,16 +211,14 @@ if(validGPS(f)&&f.end>=f.start)entries.push(f);
 $('srtFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>30e6){status('Plik SRT jest za duży (limit 30 MB).');return;}try{telemetrySource='SRT';telemetry=parseSRT(await file.text());$('srtStatus').textContent=telemetry.length?'Wczytano '+telemetry.length+' pozycji. Czas SRT musi odpowiadać temu samemu, nieprzyciętemu filmowi.':'Nie rozpoznano GPS latitude/longitude. Pozycję można wskazać ręcznie.';}catch(error){status('Nie udało się odczytać SRT: '+error.message);}};
 $('capture').onclick=()=>{
 if(video.seeking||video.readyState<2)return;video.pause();
-const canvas=document.createElement('canvas'),scale=Math.min(1,1920/video.videoWidth);canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+const canvas=document.createElement('canvas'),scale=1;canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
 canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
 const time=video.currentTime,gps=telemetry.find(x=>time>=x.start&&time<x.end);
-frames.push({title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.85),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?telemetrySource:null,yaw:gps?gps.yaw:null,pitch:gps?gps.pitch:null,directionSource:gps&&Number.isFinite(gps.yaw)?telemetrySource+' kamery':null});
+frames.push({width:canvas.width,height:canvas.height,title:'Kadr '+(frames.length+1),time,image:canvas.toDataURL('image/jpeg',.98),lat:gps?gps.lat:null,lon:gps?gps.lon:null,locationSource:gps?telemetrySource:null,yaw:gps?gps.yaw:null,pitch:gps?gps.pitch:null,directionSource:gps&&Number.isFinite(gps.yaw)?telemetrySource+' kamery':null});
 selected=frames.length-1;render();if(gps&&map)map.setView([gps.lat,gps.lon],17);status(gps?'Kadr dodany z pozycją GPS.':'Kadr dodany. Możesz wskazać jego pozycję na mapie.');
 };
 $('export').onclick=()=>{
 if(!frames.length)return;
-const missing=frames.map((f,i)=>({f,i})).find(({f})=>!validGPS(f)||(!Number.isFinite(f.yaw)&&f.pitch!==-90));
-if(missing){pick(missing.i);status('Uzupełnij pozycję i kierunek kadru '+(missing.i+1)+' przed eksportem.');if(!validGPS(missing.f))$('locate').click();else $('aim').click();return;}
 const payload=JSON.stringify({viewer:true,frames}).replace(/</g,'\\u003c');
 const start='<script id="project" type="application/json">',a=pristine.indexOf(start)+start.length,b=pristine.indexOf('<'+'/script>',a);
 const output='<!doctype html>\n'+pristine.slice(0,a)+payload+pristine.slice(b);
