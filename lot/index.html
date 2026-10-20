@@ -5,16 +5,12 @@
 </style></head><body><main>
 <header><div><small>PRZEGLĄD LOTU</small><h1>Każda sekunda na mapie.</h1></div><a href="README.md" target="_blank" rel="noopener">Formaty plików i instrukcja</a></header>
 <div class="row files">
-<label class="upload primary">＋ SRT / CSV / JSON<input id="log" type="file" accept=".srt,.csv,.json,.txt,.dat" hidden></label>
-<label class="upload">＋ Film<input id="film" type="file" accept="video/*" hidden></label>
-<label class="upload">＋ Zdjęcie<input id="photoFile" type="file" accept="image/jpeg,image/png,image/tiff" hidden></label>
-<button id="automatic" hidden>MP4 + telemetria automatycznie</button><button id="flightMode" hidden>Wróć do lotu</button><button id="demo">Zobacz przykład</button><button id="reset">Wyczyść</button>
+<label class="upload primary">＋ Wczytaj SRT<input id="log" type="file" accept=".srt" hidden></label><button id="reset">Wyczyść</button>
 </div>
-<div id="message" role="status" aria-live="polite">Otwórz SRT lub zdjęcie. Pliki pozostają na komputerze; mapa wymaga internetu.</div>
+<div id="message" role="status" aria-live="polite">Otwórz plik SRT. Pliki pozostają na komputerze; mapa wymaga internetu.</div>
 <div class="workspace">
 <section class="panel mapbox"><div id="map"></div><div class="legend"><b style="color:#25759e">↑ Dron</b> · <b style="color:#537922">↑ Obiektyw</b> · ○ Obiektyw pionowo w dół · strzałki pokazują kierunek, nie zasięg zdjęcia.<div class="row" style="margin-top:10px"><button id="fit">Cały lot</button><label><input id="follow" type="checkbox" checked> Śledź pozycję</label><label><input id="satellite" type="checkbox"> Zdjęcia Esri</label></div></div></section>
-<section class="panel"><div class="media"><div id="empty" class="empty">Film, zdjęcie lub sama telemetria.<br>Ty wybierasz, co oglądasz.</div><video id="video" controls playsinline preload="metadata" hidden></video><img id="photo" alt="Wybrane zdjęcie z drona" hidden></div>
-<div class="stats">
+<section class="panel"><div class="stats">
 <div><small>Względem startu</small><div id="relative" class="value">—</div></div>
 <div><small>Wysokość absolutna¹</small><div id="absolute" class="value">—</div></div>
 <div><small>Kierunek drona</small><div id="drone" class="value">—</div></div>
@@ -23,17 +19,17 @@
 <div><small>GPS</small><div id="gps" style="margin-top:7px">—</div></div>
 </div><div id="details">¹ Wartość z metadanych. Nie jest wysokością nad terenem; układ wysokości zależy od źródła.</div></section>
 </div>
-<section class="panel timeline"><div class="row"><button id="prev">−1 s</button><button id="play" class="primary">▶ Odtwórz</button><button id="next">+1 s</button><b id="clock">00:00 / 00:00</b><label>Idź do sekundy <input id="seconds" type="number" min="0" value="0" step="1"></label><button id="go">Przejdź</button><label>Przesunięcie filmu <input id="offset" type="number" value="0" step="0.1"> s</label></div>
+<section class="panel timeline"><div class="row"><button id="prev">−1 s</button><button id="play" class="primary">▶ Odtwórz</button><button id="next">+1 s</button><b id="clock">00:00 / 00:00</b><label>Idź do sekundy <input id="seconds" type="number" min="0" value="0" step="1"></label><button id="go">Przejdź</button></div>
 <input id="seek" type="range" min="0" max="0" value="0" step="0.1" aria-label="Czas lotu" disabled>
 <small>Wysokość względem startu [m] · kliknij wykres, aby zmienić czas</small><canvas id="chart"></canvas>
 <div id="sample" class="muted"></div></section>
-<p class="muted">Czas lotu = czas filmu + przesunięcie. Dla pasującego SRT pozostaw 0. Kierunek drona i kamery pochodzą z osobnych pól; braków nie zastępujemy kierunkiem ruchu.</p>
+<p class="muted">Kierunek drona i kamery pochodzą z osobnych pól; braków nie zastępujemy kierunkiem ruchu.</p>
 </main>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script><script src="telemetry.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="telemetry.js"></script>
 <script>
 'use strict';
-const $=id=>document.getElementById(id),T=FlightTelemetry,video=$('video');
-let samples=[],duration=0,time=0,photoRow=null,photoMode=false,mediaURL=null,photoURL=null,playing=false,lastTick=0,loadId=0,logName='',videoName='';
+const $=id=>document.getElementById(id),T=FlightTelemetry;
+let samples=[],duration=0,time=0,playing=false,lastTick=0,loadId=0,logName='';
 const message=s=>$('message').textContent=s;
 const clock=t=>Math.floor(Math.max(0,t)/60).toString().padStart(2,'0')+':'+Math.floor(Math.max(0,t)%60).toString().padStart(2,'0');
 let map=null,base=null,route=null,pointer=null;
@@ -44,8 +40,8 @@ const aerial=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services
 base=road.addTo(map);route=L.layerGroup().addTo(map);pointer=L.layerGroup().addTo(map);L.control.scale({imperial:false}).addTo(map);
 $('satellite').onchange=()=>{map.removeLayer(base);base=$('satellite').checked?aerial:road;base.addTo(map);};
 }else message('Mapa nie załadowała się. Sprawdź połączenie i odśwież.');
-function stop(){playing=false;video.pause();$('play').textContent='▶ Odtwórz';}
-function setSamples(rows,name){stop();samples=rows;duration=Math.max(...rows.slice(-1).map(r=>r.end));time=rows[0].t;logName=name;photoMode=false;$('photo').hidden=true;video.hidden=!video.src;$('empty').hidden=!!video.src;$('flightMode').hidden=true;$('seek').max=duration;drawRoute();render();$('fit').click();message(name+' · '+rows.length+' próbek · '+clock(duration)+'. Dane wyświetlane bez interpolacji.');}
+function stop(){playing=false;$('play').textContent='▶ Odtwórz';}
+function setSamples(rows,name){stop();samples=rows;duration=Math.max(...rows.slice(-1).map(r=>r.end));time=rows[0].t;logName=name;$('seek').max=duration;drawRoute();render();$('fit').click();message(name+' · '+rows.length+' próbek · '+clock(duration)+'. Dane wyświetlane bez interpolacji.');}
 function drawRoute(){if(!map)return;route.clearLayers();let segment=[];let previous=null;const flush=()=>{if(segment.length>1)L.polyline(segment,{color:'#3d8b94',weight:3,opacity:.7}).addTo(route);segment=[];};
 for(const r of samples){if(!T.validGPS(r)){flush();previous=null;continue;}if(previous&&r.t>=previous.end+0.01)flush();segment.push([r.lat,r.lon]);previous=r;}flush();}
 function indicator(r){
@@ -67,37 +63,30 @@ for(let i=0;i<samples.length;i+=stride){const r=samples[i];if(r.relative===null)
 ctx.strokeStyle='#b9882c';ctx.beginPath();const x=40+(w-50)*time/Math.max(1,duration);ctx.moveTo(x,8);ctx.lineTo(x,98);ctx.stroke();
 }
 function render(){
-const r=photoMode?photoRow:T.sampleAt(samples,time);
+const r=T.sampleAt(samples,time);
 for(const [field,unit] of [['relative',' m'],['absolute',' m'],['drone','°'],['camera','°'],['pitch','°']])$(field).textContent=r&&Number.isFinite(r[field])?r[field].toFixed(1)+unit:'—';
 $('gps').textContent=T.validGPS(r)?r.lat.toFixed(6)+', '+r.lon.toFixed(6):'Brak pozycji';
 $('clock').textContent=clock(time)+' / '+clock(duration);$('seek').value=time;$('seconds').value=time.toFixed(1);
-for(const id of ['seek','prev','next','play','seconds','go'])$(id).disabled=photoMode||!samples.length;
-$('sample').textContent=photoMode?'Metadane zdjęcia · niezależne od osi czasu filmu':r?'Próbka: '+r.t.toFixed(3)+' s · '+logName:'Brak próbki dla tego momentu — pozycja i kierunki są ukryte.';
+for(const id of ['seek','prev','next','play','seconds','go'])$(id).disabled=!samples.length;
+$('sample').textContent=r?'Próbka: '+r.t.toFixed(3)+' s · '+logName:'Brak próbki dla tego momentu — pozycja i kierunki są ukryte.';
 indicator(r);drawChart();
 }
-function seek(t,moveVideo=true){stop();time=Math.max(0,Math.min(duration,Number(t)||0));if(moveVideo&&video.src&&Number.isFinite(video.duration)){const v=time-Number($('offset').value||0);if(v>=0&&v<=video.duration)video.currentTime=v;else message('Ten moment lotu leży poza dołączonym filmem.');}render();}
-$('seek').oninput=e=>seek(e.target.value);$('prev').onclick=()=>seek(time-1);$('next').onclick=()=>seek(time+1);$('go').onclick=()=>seek($('seconds').value);$('offset').onchange=()=>seek(time);
-$('chart').onclick=e=>{if(!photoMode&&samples.length)seek((e.offsetX-40)/Math.max(1,$('chart').clientWidth-50)*duration);};
-$('fit').onclick=()=>{if(!map)return;const pts=(photoMode?[photoRow]:samples).filter(T.validGPS).map(r=>[r.lat,r.lon]);if(pts.length)map.fitBounds(pts,{padding:[65,65],maxZoom:18});};
-$('play').onclick=()=>{if(playing||!video.paused){stop();return;}if(video.src){video.play().catch(e=>message(e.message));}else{playing=true;lastTick=performance.now();$('play').textContent='❚❚ Pauza';}};
+function seek(t){stop();time=Math.max(0,Math.min(Math.max(0,duration-.001),Number(t)||0));render();}
+$('seek').oninput=e=>seek(e.target.value);$('prev').onclick=()=>seek(time-1);$('next').onclick=()=>seek(time+1);$('go').onclick=()=>seek($('seconds').value);
+$('chart').onclick=e=>{if(samples.length)seek((e.offsetX-40)/Math.max(1,$('chart').clientWidth-50)*duration);};
+$('fit').onclick=()=>{if(!map)return;const pts=samples.filter(T.validGPS).map(r=>[r.lat,r.lon]);if(pts.length)map.fitBounds(pts,{padding:[65,65],maxZoom:18});};
+$('play').onclick=()=>{if(playing){stop();return;}if(time>=duration-.001)time=samples[0].t;playing=true;lastTick=performance.now();$('play').textContent='❚❚ Pauza';};
 function tick(now){if(playing){time=Math.min(duration,time+(now-lastTick)/1000);lastTick=now;render();if(time>=duration)stop();}requestAnimationFrame(tick);}requestAnimationFrame(tick);
-video.ontimeupdate=()=>{if(photoMode)return;time=Math.max(0,video.currentTime+Number($('offset').value||0));render();};video.onplay=()=>{$('play').textContent='❚❚ Pauza';};video.onpause=()=>{$('play').textContent='▶ Odtwórz';};
-video.onerror=()=>message('Nie można odtworzyć filmu. Spróbuj kopii H.264 z zachowanym czasem oryginału.');
-$('log').onchange=async e=>{const f=e.target.files[0];if(!f)return;const id=++loadId;try{if(f.size>100e6)throw Error('Limit pliku telemetrii: 100 MB.');const rows=T.parse(await f.text(),f.name);if(id===loadId)setSamples(rows,f.name);}catch(error){if(id===loadId)message(error.message);}e.target.value='';};
-function attachVideo(url,name){stop();video.src=url;videoName=name;video.hidden=false;$('photo').hidden=true;$('empty').hidden=true;photoMode=false;$('flightMode').hidden=true;video.load();render();}
-$('film').onchange=e=>{const f=e.target.files[0];if(!f)return;if(mediaURL)URL.revokeObjectURL(mediaURL);mediaURL=URL.createObjectURL(f);attachVideo(mediaURL,f.name);message(f.name+' · dodaj pasujący SRT/JSON lub sprawdź przesunięcie względem otwartego lotu. Sam MP4 w przeglądarce nie ujawnia telemetrii DJI.');};
-$('photoFile').onchange=async e=>{
+
+$('log').onchange=async e=>{
 const f=e.target.files[0];if(!f)return;const id=++loadId;stop();
-try{if(!window.exifr)throw Error('Biblioteka metadanych nie załadowała się. Sprawdź internet.');const meta=await exifr.parse(f,{tiff:true,xmp:true,mergeOutput:true});const gps=await exifr.gps(f);if(id!==loadId)return;photoRow=T.row(meta||{});if(gps){photoRow.lat=T.num(gps.latitude);photoRow.lon=T.num(gps.longitude);}
-if(photoURL)URL.revokeObjectURL(photoURL);photoURL=URL.createObjectURL(f);$('photo').src=photoURL;photoMode=true;$('photo').hidden=false;video.hidden=true;$('empty').hidden=true;$('flightMode').hidden=!samples.length;render();$('fit').click();message(f.name+' · odczyt EXIF/XMP. Pola „—” nie występują w metadanych; zrzuty klatek zwykle nie mają GPS ani kierunku.');
-}catch(error){message(error.message);}e.target.value='';
+try{
+if(!/\.srt$/i.test(f.name))throw Error('Wybierz plik .srt.');
+if(f.size>100e6)throw Error('Limit pliku SRT: 100 MB.');
+const rows=T.parseSRT(await f.text());if(id===loadId)setSamples(rows,f.name);
+}catch(error){if(id===loadId)message(error.message);}e.target.value='';
 };
-$('flightMode').onclick=()=>{photoMode=false;$('photo').hidden=true;video.hidden=!video.src;$('empty').hidden=!!video.src;$('flightMode').hidden=true;render();$('fit').click();};
-$('reset').onclick=()=>{++loadId;stop();samples=[];duration=0;time=0;photoRow=null;photoMode=false;if(mediaURL)URL.revokeObjectURL(mediaURL);if(photoURL)URL.revokeObjectURL(photoURL);mediaURL=photoURL=null;video.removeAttribute('src');video.load();video.hidden=true;$('photo').removeAttribute('src');$('photo').hidden=true;$('empty').hidden=false;$('flightMode').hidden=true;$('offset').value=0;if(route)route.clearLayers();render();message('Wczytaj nowy lot lub zdjęcie.');};
-$('demo').onclick=()=>{$('reset').click();setSamples(T.finalize(Array.from({length:121},(_,t)=>({t,end:t+1,lat:52.22+.003*Math.sin(t/50),lon:21.01+.004*t/120,relative:20+45*Math.sin(t/120*Math.PI),absolute:120+45*Math.sin(t/120*Math.PI),camera:(t*2)%360,drone:75,pitch:-35}))), 'PRZYKŁAD SYMULOWANY — nie jest rzeczywistym lotem');};
-const token=new URLSearchParams(location.search).get('token'),local=location.hostname==='localhost'&&token;
-$('automatic').hidden=!local;
-$('automatic').onclick=async()=>{const b=$('automatic');b.disabled=true;stop();video.removeAttribute('src');video.load();message('Wybierz film w oknie Windows. Trwa odczyt ExifTool…');try{const response=await fetch('/open',{method:'POST',headers:{'X-Widok-Token':token}}),data=await response.json();if(!response.ok)throw Error(data.error||'Błąd odczytu');if(data.cancelled){message('Anulowano.');return;}const rows=T.finalize(data.samples.map(x=>T.row({...x,camera:x.yaw})));setSamples(rows,data.name+' · ExifTool');attachVideo(data.url,data.name);$('offset').value=0;}catch(error){message(error.message);}finally{b.disabled=false;}};
+$('reset').onclick=()=>{++loadId;stop();samples=[];duration=0;time=0;logName='';if(route)route.clearLayers();render();message('Wczytaj plik SRT.');};
 new ResizeObserver(()=>{if(map)map.invalidateSize();drawChart();}).observe($('chart'));
 render();
 </script></body></html>
