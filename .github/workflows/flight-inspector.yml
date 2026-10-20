@@ -1,0 +1,26 @@
+name: Flight inspector checks
+on:
+  push:
+    branches: [main]
+    paths: ['lot/**', '.github/workflows/flight-inspector.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parser and JavaScript checks
+        run: node lot/test.cjs
+      - name: PowerShell syntax
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$pwd/lot/Start-Lot.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Przeglad-lotu-Windows
+          path: lot/
